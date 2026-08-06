@@ -1,0 +1,170 @@
+﻿ACADEMY SALES script
+
+
+1. Greeting
+
+
+[If known] Hello! You must be [child’s name]. And you must be [parent’s name] My name is [your name]. Welcome to Steamoji!
+
+
+[If unknown] Hello! My name is [your name]. [To child] What’s your name? Welcome to Steamoji! [To parent] Can I confirm your information before we get started?
+
+
+Parent’s Name:                                                                   Phone: __________________________________    .
+                                                                   
+Email Address: ____________________________________________________________________ _________                              
+	Child’s Name:                                                                         Age: ________________________________ __    .                                                                                
+	
+
+Steamoji is a maker academy for kids. [To child] Do you know what a maker academy is? What does it sound like? What do you think we’re going to do here? [Elicit: “make things/stuff?”]. Yeah, exactly! We like to make things here! Do you like making things at home? What kind of tools and materials do you normally use to make things? [Elicit: “cardboard, Lego,” etc.] Cool! We use a lot of the same tools and materials here. We use a lot of cardboard, tape, glue, construction paper, and VEX robotics kits, which are similar to Lego. We also use some bigger tools like 3D printers and laser cutters which I’m going to show you in a moment, but first, let’s look at our achievement levels.
+
+
+2. ACHIEVEMENT LEVELS
+
+
+Our Journey to Master Maker curriculum has 10 levels. Everyone starts out as a Tinkerer, doing simple projects like building a VEX rover or designing a 3D-printed bookmark, and the missions get progressively harder as you level up all the way to a Master Maker. The whole journey takes about two years to complete if you work hard and come twice a week, and we’ve broken it down into four chapters that will give you both the hard and soft skills you need to think like a maker. Then, before you become a Master Maker you’ll complete a capstone project where you identify a real-world problem and design and build your own solution using everything you’ve learned. This could be a robot that’s designed to perform a specific task, or an invention that solves a problem you’re really passionate about.
+
+
+3. portal & badge-in
+
+
+[To child] When you become a member here you’ll have a badge like this [show demo badge]. Your badge will have your photo, name, your current level and a QR code you can use to scan in. Do you want to give it a try? [Give child badge]. Press “scan badge,” hold it up to the camera [wait], there you go! It says you’re going to be sitting at Station 1. [Repeat for additional child(ren)] [To all] This is how we track attendance at Steamoji. Every time you scan in you get 50 OJI Coins, then you can earn up to 50 more depending on how well you focus and complete your project. You can use your OJI Coins to buy prizes from the Prize Station [gesture to prize wall]. [To parents] We also record a short video called a Maker Moment at the end of every session where we’ll get [child’s name(s)] to explain what they did that day, and when they badge out, that video is automatically sent to you via a push notification to our Parent App.
+
+
+4. Fabrication station
+
+
+[To all] Are you ready to go inside? Usually it’s a kid-only zone past this point but today the whole family can come in. [To child(ren)] Have you ever seen a 3D printer before? Do you know how they work? Basically the extruder here [point to extruder] heats up the filament and prints objects layer-by-layer based on the designs you create on the computer. We use PLA filament which is corn-based and biodegradable [show a couple of examples]. We also do VEX robotics here [gesture towards VEX competition table] and you can use these kits to create your own rovers, cranes and battle bots ready for competition. Have you done any coding before? We have loads of digital tools that we’ll teach you how to use as well, like [name a few age-relevant tools from the curriculum].
+
+
+5.  Settling in
+
+
+[To child] For today’s session you’re going to learn [state intended lesson outcome and tool], so have a seat at workstation number [1] and we’ll get started. [Bring over Facilitator] This is [Facilitator’s name], one of our facilitators here at Steamoji. They’re going to be helping you with your project today. [Let the Facilitator take over from here]. [To parents as child begins project] So how it works is apprentices are watching short videos on tablets that give them the instructions, and then completing tasks using the tools and materials at their workstation. We have facilitators here to help them at a 4:1 ratio if they have questions or get stuck. Do you have any questions so far? [Wait for questions]. [If no questions or they are covered by the Academy Sales Deck]. I can walk you through our key information at the front.
+
+
+6. academy sales deck
+
+
+[To decision maker] How did you hear about us? [Use this question as an ice breaker and to determine who the key decision maker is if unsure].
+
+
+[Screencast Academy Sales Deck to front TV] Again, welcome to Steamoji [location]. We’re a maker academy for kids, a STEAM-based extracurricular program where kids learn to build what they set their minds to using basic engineering and design principles. This location has been open for [number of years]. I first got into Steamoji because [explain motivation for opening your franchise]. We’re looking forward to having you join our maker community!
+
+
+[For HQ presentation]: Steamoji started in 2019 when a group of parents who were unhappy with the slow pace of technological adaptation in schools tried to teach their own kids ‘STEM skills.’ After a quick search for ‘maker kits’ on Amazon yielded thousands of results, they were overwhelmed by the sheer variety of options available. How to decide which kits to buy, and how to sequence them? They needed a curriculum that would be structured and reinforcing, while keeping kids engaged through a modern, gamified delivery system. These parents started Steamoji with the basic goal of future-proofing their children.
+
+
+* THE CHALLENGE
+
+
+Our world is evolving faster than ever. Technology, AI and global connectivity are reshaping the way we live and work. The next generation will face challenges we can’t yet imagine. Alongside new skills, they’ll need adaptability, creativity, and resilience to lead the way. At this year’s World Economic Forum, a Future of Jobs report found that 86% of employers expect AI and other information processing technologies like VR, AR and big data to reshape their organizations over the next five years, along with robots and autonomous systems at 58%, and new energy technologies at 41%. The future needs makers. As technology advances and schools struggle to keep up, Steamoji aims to fill a critical gap by teaching kids vital skills they’ll need in the future job market.
+
+
+* The SOLUTION
+
+
+Through hands-on STEM learning and the development of a Maker Mindset, we empower kids to not just adapt to the future, but to build it. While we recognize that kids are growing up in a digital world, we encourage them to shift from being passive consumers to active creators of technology. To do this, we equip them with real tools and real skills that are used by industry professionals. You won’t see any Minecraft or Roblox here — kids start out with Tinkercad, Scratch and VEX Robotics and quickly level up to microcontrollers and professional coding and design tools like Python, Unity and Blender. Our Journey to Master Maker curriculum is designed to inspire a maker mindset while teaching your child fundamental STEM skills in coding, robotics, engineering, 3D printing, digital arts and more. We’ll prepare them with the future-ready skills they’ll need for the jobs of tomorrow while helping them to develop confidence and critical thinking skills. And finally, our gamified approach means progress is celebrated as kids earn OJI coins as they level up through their journey, while you get updates in real-time through our Parent App.
+
+
+* MISSION & promise
+
+
+Steamoji’s mission is to train the next generation of master makers. A maker is a hands-on learner, builder and innovator who uses STEAM skills, creativity and curiosity to turn their ideas into reality. However, a master maker also has the mindset to embrace failure, adapt and be resilient as they encounter challenges and solve unexpected problems that come up along the way. Our promise to you is that regardless of how long you spend at Steamoji or whether or not your child becomes a Master Maker, we will help your child to develop a maker mindset that they’ll take with them into everything they do. We instill core values that we hope Steamoji apprentices will carry with them for the rest of their lives. Exploration is the spirit of embracing change — we believe in teaching kids how to overcome failure as they experiment and discover what works and what doesn’t. Collaboration is about working with others in an environment that’s both competitive and supportive. Problem solving is about looking at the bigger picture from all angles, and the maker mindset is all about resilience and adaptability, as nothing is usually successful on the first attempt. We teach kids to constantly iterate and improve their solutions and empower them with grit and tenacity, while encouraging them to seek feedback from others in order to gain greater perspective.
+
+
+* What is a Maker mindset?
+
+
+So what exactly is a maker mindset? This is central to everything we do at Steamoji, as master makers will combine hard STEM skills like coding, robotics, engineering, 3D printing and digital arts on the left with soft skills like curious observation, structural awareness, procedural understanding, causal analysis and creative expansion on the right. While “Build to Solve” is all about learning to build like a maker through hands-on STEM projects, “Solve to Grow” is about learning to solve like a maker by understanding problems and finding solutions. Both sides are equally important in the development of a maker mindset.
+
+
+* build  to solve
+Let’s break it down a little further. “Build to Solve” is made up of hands-on projects that reinforce learning and keep kids engaged, and this is where apprentices build future-proof STEM skill sets across a range of broad subject areas. They’ll learn core coding skills through programming languages, building everything from simple programs to advanced games with Scratch, Python and Unity. They’ll explore robotics, where they’ll learn how hardware and software work together by building and coding robots with sensors, motors and automation in VEX, micro:bit and Arduino. They’ll develop core engineering and design skills through the real-world application of simple machines, structures, gears and hydraulic systems. They’ll bring 3D-printed creations to life and learn about printability, spatial reasoning and design constraints with 3D modelling software like Tinkercad and Onshape. And they’ll discover their artistic expression through drawing, animation, design and stop motion while mastering digital tools for visual storytelling and creative communication.
+
+
+* Solve to grow
+“Solve to Grow” is about planning, ideating and solving in order to create a mindset that extends beyond the build. Apprentices will build confidence and critical thinking skills as they observe with curiosity by asking questions, noticing details and sparking a sense of wonder (“This is interesting!”). They’ll break things down, map the parts and understand how it’s built as they begin to understand the structure (“I see how that works!”). They’ll imagine new paths, look beyond the obvious and consider what could be as they explore opportunities (“What’s possible?”). They’ll tinker, test and troubleshoot, trying different approaches and finding fascination in the details as they analyze the cause and effect of what they’re doing (“Why did that happen?”). And finally, they’ll invent new solutions, improve on what already exists and share bold ideas as they create and reimagine (“What if? What else?”). You’ll see the clear benefits of this approach as they build confidence and creativity and feel empowered to be able to do anything they set their mind to. 
+
+
+* Journey to master maker
+
+
+All of this brings us to the curriculum — your child’s Journey to Master starts here. Our curriculum has four chapters, made up of missions that focus on building specific skills and with structured learning outcomes. Each chapter takes roughly six months to complete, coming twice a week, so becoming a master maker takes approximately two years in total. In chapter one, apprentices complete core missions that will spark their curiosity in areas like CAD design and 3D printing, coding and robotics, engineering and design principles and the digital arts. You’ll see them get excited about technology, try new things and discover their interest in STEM, and you’ll be amazed by their imagination! In chapter two, apprentices go deeper into new technologies and equipment like microcontrollers and electronic components, building resilience as they break down problems and work through challenges. At this stage, you’ll see them start to think beyond a step-by-step plan in the process of discovering that mistakes and setbacks are part of the journey. They might be uncomfortable, but a bit of discomfort is good and you’ll quickly see their resolve grow stronger. Chapter three is about finding their problem-solving style, using new skills and materials like laser cutters or game engines to take on their biggest builds yet. You’ll notice their independent thinking skills grow and they’ll become more strategic as they design real solutions. Then, in chapter four, they’ll expand their STEM toolkit, flexing their adaptability as they prepare for their big capstone project. The capstone is the final step to becoming a master maker, where they’ll identify a real-world problem and design and build their own solution to this problem using everything they’ve learned. They’ll showcase their skills and maker mindset as they work with confidence and creativity, defining their own approach while still receiving plenty of support. At each stage of the journey we’ll check in with you for a parent consultation to get your input and make any necessary adjustments to their program, so everyone’s always on the same page. If everything’s going well, we’ll use this as an opportunity to celebrate their progress before moving them onto the next chapter. Once they complete their capstone project and become a master maker, we’ll award them a Steamoji certificate of completion, and they’ll have built an online portfolio of projects they can use in high school or university applications. They then unlock a whole new level of missions that will continue to challenge them into their high school years, and can form teams with other master makers to participate in high-level competitions that will help to nurture great connections and references for future education and career opportunities. The Steamoji program is designed to set them up for life.
+
+
+* Journey to master maker examples
+
+
+[If apprentice is 6-8 years old, go to slide 9]
+
+
+[If apprentice is 9-12 years old, go to slide 10]
+
+
+[If apprentice is 13+ years old, go to slide 11]
+
+
+Here’s an example of what [child’s name]’s specific journey will look like. They’ll start with [STEM Explorations/STEM Solutions] and complete all of the two-week missions under “Curiosity” in order to build foundational STEM skills. If there are any missions that are too easy for them or where they’ve used the tools and technology extensively before, we have the option to mark those missions as complete and move them on. In the “Resilience” and “Problem Solving” chapters they’ll be able to pick optional missions that align with their specific interests and goals. And in the final chapter, “Adaptability,” they’ll learn professional-level tools before applying everything they’ve learned into a capstone project of their choosing. Do you have any questions for me at this point? 
+
+
+* The experience
+
+
+Okay, so in terms of how it works, we have a flexible online booking system that allows you to schedule 60, 90 or 120-minute sessions on 30-minute intervals. The type of membership you choose will determine how many hours you can book each month. When your child arrives at the academy, they’ll find their badge on their current level, scan in at the front and go to their workstation, where their project will be set up with all of the tools and materials they’ll need that day. They’ll start watching the instructional videos on the tablet at their station, and trained facilitators will come around to check in on them, answer any questions, or help them if they get stuck. At the end of each session, they’ll complete a short quiz on the tablet to check their understanding, and then we’ll record a short “Maker Moment” video where they’ll have the opportunity to explain what they learned and show off their latest project. That video is only shared with you and any additional emails you add to their account by logging into the Steamoji Parent App. We have a number of gamification elements baked in to help keep kids engaged and when they badge into the academy they’ll receive 50 OJI Coins just for showing up, then at the end of their session the facilitator recording their video has the option to award them an additional 50 OJI Coins depending on how well they focused and whether or not they were able to complete their project. They can use their OJI Coins to buy prizes at the end of their session from the Prize Station over here [gesture to Prize Station]. We like to celebrate every milestone here, and each time they level up we’ll present them with a certificate, take a photo, and update their badge and lanyard. When you become a member with us your entire family will be sorted into one of our four house teams (Jobs, Carver, Edison or Hopper) and you’ll have opportunities to compete in challenges, attend special events and earn points for your house.
+
+
+* PARENTS SEE PROGRESS
+
+
+Best of all, you’ll be able to follow along with [child name]’s maker journey through our Parent App. Every time your child completes a Steamoji session, you’ll receive an automatic personalized update that includes a “Maker Moment” video that you can share with friends, family or grandparents, an overview of the project your child completed that day and why it’s important, conversation starters you can use to connect with your child about what they learned that day and reinforce understanding, and an overview of their current achievement level and OJI coin balance. Here’s the link to download the Parent App (gesture to QR code on referral poster). Would you like me to walk you through it quickly? 
+
+
+[If yes, show them how to book a session, option to purchase a membership and use it to transition to membership conversation]
+
+
+[If no, this may be an indication that the parent is not yet ready to buy. Proceed to membership conversation]
+
+
+* Memberships
+
+
+We wanted Steamoji to be the equivalent of an adult makerspace for kids, so all of our memberships give you access to the space, tools and materials without any initial registration or additional fees. Our most popular option by far is the annual membership, which gives you 8 hours monthly plus an additional 4 hours of extra time free. It also gives you priority booking rights, so you can book your sessions up to a full year in advance. So if you want to lock in those coveted slots on Tuesdays and Thursdays from 3:30-5pm, for example, you can block them off for the entire year, whereas if you’re on a monthly membership you can only book up to 4 weeks in advance. The annual membership also includes a [$50 discount on camps], [$100 off our VEX robotics competition program] and a [free birthday party], so when it’s [child name]’s birthday they can invite up to 8 of their friends to the academy for an hour of STEM and an hour of celebration time. We provide the activity and some simple decorations, and you provide the catering, like pizza and cake. And you’ll receive a welcome pack that includes a [Steamoji t-shirt], [backpack] and [some stickers and pencils]. The monthly option includes 8 hours to progress through the curriculum at the recommended pace but doesn’t include any of the perks you get with the annual membership. We also have a lite option if you can only make it to the academy once a week, but keep in mind that it will take twice as long for your child to progress through the program, so 4-5 years in total to become a Master Maker. We recommend at least two sessions a week because much like learning an instrument, STEM skills are a muscle that needs to be exercised, and without regular practice kids are unable to remember what they did in the last session or progress. There are no registration fees and all of the payments are monthly, with 30 days written notice required for pauses or cancellations. Siblings get a $50-per-month discount and we’ll give you a $50 gift card for anyone you refer to us who signs up for a membership. Do you have any questions?
+
+
+
+
+7. CLOSING THE SALE
+
+
+[Show the parent how to purchase a membership via the Parent App, or give them a copy of the physical membership agreement]. [To decision maker] You can start filling this out, I’m just going to check on [child’s name]. [Make sure the child has finished their project, if so bring them to the front to show their parents what they made]. Check out what [child’s name] made today! [Ask child questions to get them to explain what they did]. [If they haven’t already done so, ask the facilitator to record their Maker Moment video, with permission from their parents].
+
+
+[If ready to buy, direct the decision maker’s attention back to the Parent App or physical membership agreement]. Which membership did you want to go with? [If annual] Great, we’re excited for [child’s name] to start their journey with us! [If monthly] Sure, we can try it out for a month and then check in with you when it’s close to your renewal date to see if you want to upgrade to the annual. [If lite, go to objection handling]. [Once sold, take a portrait photo of the child against a white backdrop for their badge and help the parent to book their first session].
+
+
+[If not yet ready to buy, go to objection handling]
+
+
+Objection handling
+
+
+1. Schedule (“I don’t think we can commit to coming twice a week...”).
+
+
+We know how busy kids’ schedules can be. That’s why we’re the only after school STEM program that offers flexible booking, so you can schedule your sessions to recur at the same time every week or pick and choose the days and times as you go. Many of our families like to book two 90-minute sessions per week to maximize their hours, but some prefer to come once on the weekend for two hours and do two projects back-to-back. It’s entirely up to you and what works for your schedule.
+
+
+2. Price (“I want to make sure my child likes it before signing up…”)
+
+
+The monthly option is a great way to try it out for a month first, and we’re sure your child will love it, but if you’re still not convinced I’d be happy to offer you a trial month at the annual membership rate, so if you upgrade to an annual membership at the end you won’t be paying any more for the first month. If you decide not to continue with us after the first month, you’ll just need to pay back the difference between the monthly and annual option.
+
+
+3. Distance (”We live too far away…”)
+
+
+We have a number of families that live far away who come for two hours on the weekends to do two projects back-to-back. That way you spend more time in the area and make the drive worthwhile. If you’re unable to get here twice a week and can’t do a 2-hour session we do also have the lite option which only includes 4 hours per month. We hope that this is a temporary solution and you’re able to upgrade to a full membership soon.
+
+
+[If still not sold] I understand if you need some more time to think about it. I’ll give you a copy of our Family Guide and membership agreement so you can review our key information with your [husband/wife/partner] before making a decision. If they have any questions for me I’d also be happy to speak with them. Can we schedule your first session now so we have something on the calendar? Would the same time next week work for you? [If no] When would be a good time for me to follow up with you? [Give parents a couple of options. Don’t let them leave without committing to something].

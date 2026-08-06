@@ -1,0 +1,16 @@
+{
+  "timezone": "America/Los_Angeles",
+  "sessionMinutes": 60,
+  "weeklyHours": {
+    "monday": { "open": "14:00", "close": "19:00" },
+    "tuesday": { "open": "14:00", "close": "19:00" },
+    "wednesday": { "open": "14:00", "close": "19:00" },
+    "thursday": { "open": "14:00", "close": "19:00" },
+    "friday": { "open": "14:00", "close": "19:00" },
+    "saturday": { "open": "10:00", "close": "19:00" },
+    "sunday": null
+  },
+  "slotIntervalMinutes": 30,
+  "blockedSlots": [],
+  "notes": "Edit blockedSlots as ISO datetimes (America/Los_Angeles local wall times as YYYY-MM-DDTHH:mm) when a free-session slot is taken. Replace this file with a live booking API later."
+}

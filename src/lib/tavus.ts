@@ -1,0 +1,328 @@
+import { promises as fs } from "fs";
+import path from "path";
+import { siteConfig } from "./config";
+import { buildMayaSystemPrompt, mayaGreeting } from "./maya-persona";
+import { getTavusApiKey } from "./runtime-secrets";
+import { buildAvailabilityBrief } from "./schedule";
+
+/** Default Maya face (Tavus face / replica id). */
+export const STOCK_FEMALE_FACE_ID = "r9664272580d";
+/** Tavus stock Sales Development Rep PAL — reliable on most accounts. */
+export const STOCK_SALES_PAL_ID = "pcb7a34da5fe";
+
+/** Bump when PAL layers / face / interrupt settings change so we refresh cached PAL. */
+const PAL_CONFIG_VERSION = 5;
+
+type LeadLike = {
+  name?: string;
+  childName?: string;
+  childAge?: string;
+  notes?: string;
+};
+
+type CachedPal = {
+  palId: string;
+  faceId: string;
+  createdAt: string;
+  version?: number;
+};
+
+const cacheFile = path.join(process.cwd(), ".data", "tavus-pal.json");
+
+const conversationalFlowLayer = {
+  turn_detection_model: "sparrow-1",
+  turn_taking_patience: "medium",
+  /** Stop talking when the parent starts speaking. */
+  pal_interruptibility: "high",
+  replica_interruptibility: "high",
+  voice_isolation: "near",
+  idle_engagement: "eager",
+};
+
+export function normalizeApiKey(key: string) {
+  return key.trim().replace(/^["']|["']$/g, "");
+}
+
+function apiKeyOrThrow() {
+  const key = getTavusApiKey();
+  if (!key) throw new Error("Missing TAVUS_API_KEY");
+  return key;
+}
+
+function extractError(data: unknown, fallback: string) {
+  if (!data || typeof data !== "object") return fallback;
+  const d = data as Record<string, unknown>;
+  if (typeof d.message === "string" && d.message) return d.message;
+  if (typeof d.error === "string" && d.error) return d.error;
+  if (d.error && typeof d.error === "object") {
+    const inner = d.error as Record<string, unknown>;
+    if (typeof inner.message === "string") return inner.message;
+  }
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return fallback;
+  }
+}
+
+async function readCachedPal(): Promise<CachedPal | null> {
+  try {
+    const raw = await fs.readFile(cacheFile, "utf8");
+    return JSON.parse(raw) as CachedPal;
+  } catch {
+    return null;
+  }
+}
+
+async function writeCachedPal(pal: CachedPal) {
+  await fs.mkdir(path.dirname(cacheFile), { recursive: true });
+  await fs.writeFile(cacheFile, JSON.stringify(pal, null, 2), "utf8");
+}
+
+export async function clearCachedPal() {
+  await fs.unlink(cacheFile).catch(() => undefined);
+}
+
+async function tavusFetch(pathname: string, init?: RequestInit) {
+  const key = apiKeyOrThrow();
+  const res = await fetch(`https://tavusapi.com${pathname}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      ...(init?.headers || {}),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
+function palBody(faceId: string, systemPrompt: string) {
+  return {
+    pal_name: `${siteConfig.personaName} — ${siteConfig.brand}`,
+    system_prompt: systemPrompt,
+    pipeline_mode: "full",
+    default_face_id: faceId,
+    layers: {
+      conversational_flow: conversationalFlowLayer,
+    },
+  };
+}
+
+/** Best-effort custom Maya PAL; falls back to stock sales PAL. */
+export async function ensureMayaPal(): Promise<CachedPal> {
+  const envPal = process.env.TAVUS_PAL_ID;
+  const faceId =
+    process.env.TAVUS_FACE_ID ||
+    process.env.TAVUS_REPLICA_ID ||
+    STOCK_FEMALE_FACE_ID;
+
+  if (envPal) {
+    return {
+      palId: envPal,
+      faceId,
+      createdAt: new Date().toISOString(),
+      version: PAL_CONFIG_VERSION,
+    };
+  }
+
+  const cached = await readCachedPal();
+  const systemPrompt = buildMayaSystemPrompt();
+
+  if (cached?.palId && cached.version === PAL_CONFIG_VERSION) {
+    return cached;
+  }
+
+  // Refresh interrupt settings / prompt on an existing PAL when possible.
+  if (cached?.palId) {
+    const patched = await tavusFetch(`/v2/pals/${cached.palId}`, {
+      method: "PATCH",
+      body: JSON.stringify(palBody(faceId, systemPrompt)),
+    });
+    if (patched.res.ok) {
+      const saved = {
+        palId: cached.palId,
+        faceId,
+        createdAt: new Date().toISOString(),
+        version: PAL_CONFIG_VERSION,
+      };
+      await writeCachedPal(saved);
+      return saved;
+    }
+  }
+
+  const palResult = await tavusFetch("/v2/pals", {
+    method: "POST",
+    body: JSON.stringify(palBody(faceId, systemPrompt)),
+  });
+
+  if (palResult.res.ok) {
+    const palId = palResult.data.pal_id || palResult.data.persona_id;
+    if (palId) {
+      const saved = {
+        palId,
+        faceId,
+        createdAt: new Date().toISOString(),
+        version: PAL_CONFIG_VERSION,
+      };
+      await writeCachedPal(saved);
+      return saved;
+    }
+  }
+
+  const personaResult = await tavusFetch("/v2/personas", {
+    method: "POST",
+    body: JSON.stringify({
+      persona_name: `${siteConfig.personaName} — ${siteConfig.brand}`,
+      system_prompt: systemPrompt,
+      pipeline_mode: "full",
+      default_replica_id: faceId,
+      layers: {
+        conversational_flow: conversationalFlowLayer,
+      },
+    }),
+  });
+
+  if (personaResult.res.ok) {
+    const palId =
+      personaResult.data.persona_id || personaResult.data.pal_id;
+    if (palId) {
+      const saved = {
+        palId,
+        faceId,
+        createdAt: new Date().toISOString(),
+        version: PAL_CONFIG_VERSION,
+      };
+      await writeCachedPal(saved);
+      return saved;
+    }
+  }
+
+  return {
+    palId: STOCK_SALES_PAL_ID,
+    faceId,
+    createdAt: new Date().toISOString(),
+    version: PAL_CONFIG_VERSION,
+  };
+}
+
+async function tryCreateConversation(payload: Record<string, unknown>) {
+  return tavusFetch("/v2/conversations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createLivingConversation(lead?: LeadLike | null) {
+  const { palId, faceId } = await ensureMayaPal();
+  const greeting = mayaGreeting(lead ?? undefined);
+  const { brief } = await buildAvailabilityBrief(10);
+  const context = `${buildMayaSystemPrompt(lead ?? undefined)}
+
+## LIVE FREE-SESSION AVAILABILITY (use for booking questions)
+${brief}
+`;
+
+  const shared = {
+    conversation_name: `${siteConfig.brand} — ${siteConfig.personaName}`,
+    conversational_context: context,
+    custom_greeting: greeting,
+    properties: {
+      max_call_duration: Number(process.env.TAVUS_MAX_DURATION || 600),
+      participant_left_timeout: 45,
+      participant_absent_timeout: 90,
+      language: "english",
+    },
+  };
+
+  const attempts: Record<string, unknown>[] = [
+    { ...shared, pal_id: palId, face_id: faceId },
+    { ...shared, persona_id: palId, replica_id: faceId },
+    {
+      ...shared,
+      pal_id: STOCK_SALES_PAL_ID,
+      face_id: STOCK_FEMALE_FACE_ID,
+    },
+    {
+      ...shared,
+      persona_id: STOCK_SALES_PAL_ID,
+      replica_id: STOCK_FEMALE_FACE_ID,
+    },
+    { ...shared, face_id: STOCK_FEMALE_FACE_ID },
+    { ...shared, replica_id: STOCK_FEMALE_FACE_ID },
+  ];
+
+  const errors: string[] = [];
+
+  for (const payload of attempts) {
+    const { res, data } = await tryCreateConversation(payload);
+    if (res.ok && data.conversation_url) {
+      return {
+        conversationId: data.conversation_id as string,
+        conversationUrl: data.conversation_url as string,
+        faceId,
+        palId,
+      };
+    }
+    errors.push(`${res.status}: ${extractError(data, "unknown error")}`);
+  }
+
+  await clearCachedPal();
+
+  throw new Error(
+    `Tavus could not start a living video call. ${errors[0] || "Unknown error"}${
+      errors[1] ? ` | Also tried: ${errors[1]}` : ""
+    }. Check that your key has Conversational Video access and available credits at https://maker.tavus.io`,
+  );
+}
+
+export async function endLivingConversation(conversationId: string) {
+  const key = getTavusApiKey();
+  if (!key || !conversationId) return;
+  await fetch(`https://tavusapi.com/v2/conversations/${conversationId}/end`, {
+    method: "POST",
+    headers: { "x-api-key": key },
+  }).catch(() => undefined);
+}
+
+export async function verifyTavusKey(key: string) {
+  const normalized = normalizeApiKey(key);
+  const attempts = [
+    "/v2/faces?face_type=system&limit=1",
+    "/v2/replicas?replica_type=system&limit=1",
+    "/v2/pals?limit=1",
+  ];
+
+  let lastStatus = 0;
+  let lastBody: unknown = null;
+
+  for (const pathName of attempts) {
+    const res = await fetch(`https://tavusapi.com${pathName}`, {
+      headers: { "x-api-key": normalized },
+    });
+    lastStatus = res.status;
+    lastBody = await res.json().catch(() => ({}));
+    if (res.ok) {
+      return { ok: true as const, key: normalized };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ok: false as const,
+        status: res.status,
+        error: extractError(
+          lastBody,
+          "API key rejected. Copy the full key again from PAL Maker → API Key.",
+        ),
+      };
+    }
+  }
+
+  return {
+    ok: false as const,
+    status: lastStatus,
+    error: extractError(
+      lastBody,
+      `Could not verify key (HTTP ${lastStatus || "?"} ). Use the key from https://maker.tavus.io/dev/api-keys`,
+    ),
+  };
+}
