@@ -1,0 +1,100 @@
+{
+  "version": 2,
+  "agent": "Maya · Steamoji Kirkland",
+  "passBar": 0.8,
+  "scoring": {
+    "scenario": "pass | fail",
+    "layers": [
+      "mustMatchAll / mustMatchAny / mustNotMatch (strict regex)",
+      "structural: maxQuestions, maxWords",
+      "LLM judge for soft failures when llmJudge=true (pushiness, discovery quiz, qualify gate spirit)"
+    ],
+    "rule": "Scenario fails if any regex/structural check fails OR LLM judge returns pass=false. Suite pass bar 80%."
+  },
+  "criteria": [
+    {
+      "id": "C1",
+      "name": "Opening",
+      "weight": "critical",
+      "pass": "Age known → excited exploring Steamoji for X-year-old. Age unknown → ask how old to start. Short; AI disclosure.",
+      "fail": "Long monologue; skips age when unknown; invents child details."
+    },
+    {
+      "id": "C2",
+      "name": "Qualify before trial",
+      "weight": "critical",
+      "pass": "No free-trial suggest/times until age 5–14 AND Kirkland access known. Ask missing piece one at a time.",
+      "fail": "Offers trial/slots before qualify; pushes trial for out-of-range age."
+    },
+    {
+      "id": "C3",
+      "name": "No interest interview",
+      "weight": "critical",
+      "pass": "Does not ask hobbies, robotics vs coding, school type, or what they are looking for.",
+      "fail": "Discovery quiz or stacked preference questions."
+    },
+    {
+      "id": "C4",
+      "name": "Comfort before booking",
+      "weight": "critical",
+      "pass": "After qualify: answer + invite questions first. No early Saturday/default day push.",
+      "fail": "Ends most turns with Saturday/weekday booking CTA; hard-sells slots."
+    },
+    {
+      "id": "C5",
+      "name": "How Steamoji works",
+      "weight": "high",
+      "pass": "Makerspace 5–14 + Maker Mindset. Invites questions; trial only if ready/qualified.",
+      "fail": "Tool dump only; jumps straight to booking day."
+    },
+    {
+      "id": "C6",
+      "name": "Pricing policy",
+      "weight": "critical",
+      "pass": "No membership dollar figures. Qualifies only missing age/location. Never re-asks known facts.",
+      "fail": "Quotes Annual/Monthly/Lite; dumps camp prices on membership ask."
+    },
+    {
+      "id": "C7",
+      "name": "Age handling",
+      "weight": "critical",
+      "pass": "5 → junior path; 6–14 → perfect fit; out of range → polite no trial. No age re-ask once known.",
+      "fail": "Wrong age fit; re-asks age; pushes trial out of range."
+    },
+    {
+      "id": "C8",
+      "name": "Camps when asked",
+      "weight": "high",
+      "pass": "Kirkland camps list filtered by age; camps URL; no invented camps.",
+      "fail": "Wrong age band; invented camps; forced trial pivot on camps-only chat."
+    },
+    {
+      "id": "C9",
+      "name": "Trial facts",
+      "weight": "high",
+      "pass": "~30 min; parent/guardian attends; child project + parent tour.",
+      "fail": "Drop-off OK; wrong duration; invented logistics."
+    },
+    {
+      "id": "C10",
+      "name": "Calendar booking",
+      "weight": "critical",
+      "pass": "Real open slots only; mixed days; [BOOK:] on confirm; never invents times.",
+      "fail": "Invented slots; books without confirm; Saturday-only bias."
+    },
+    {
+      "id": "C11",
+      "name": "Memory / recall",
+      "weight": "high",
+      "pass": "Recalls age/location/name already shared.",
+      "fail": "Pretends not to know known facts; contradicts lead context."
+    },
+    {
+      "id": "C12",
+      "name": "Brevity & turn shape",
+      "weight": "medium",
+      "pass": "Mostly 1–2 short sentences; at most one question per turn.",
+      "fail": "Long monologue; two or more questions in one turn."
+    }
+  ]
+}

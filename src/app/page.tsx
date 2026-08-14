@@ -9,6 +9,9 @@ export default function HomePage() {
       <nav className="nav">
         <div className="brand-mark">{siteConfig.brand}</div>
         <div className="nav-actions">
+          <Link className="ghost-link" href="/eval">
+            Eval results
+          </Link>
           <a className="ghost-link" href={siteConfig.freeSessionUrl}>
             Book free session
           </a>

@@ -1,0 +1,489 @@
+{
+  "version": 2,
+  "baseUrl": "http://127.0.0.1:3000",
+  "scenarios": [
+    {
+      "id": "S01",
+      "name": "Cold open — age unknown",
+      "focus": ["C1", "C3", "C2"],
+      "lead": null,
+      "messages": [{ "role": "user", "content": "Hi" }],
+      "expect": {
+        "mustMatchAll": [
+          "(?i)how old your child|how old is your child|let me understand how old"
+        ],
+        "mustNotMatch": [
+          "(?i)saturday",
+          "(?i)weekday after 2",
+          "(?i)book a free trial|schedule a (free )?trial|which day",
+          "(?i)what does (your|the) (child|kid) like",
+          "(?i)robotics or coding|what are you looking for",
+          "(?i)hobbies|school type"
+        ],
+        "maxQuestions": 1,
+        "maxWords": 55,
+        "llmJudge": true,
+        "notes": "Must ask age specifically; short; no trial/booking/interest quiz."
+      }
+    },
+    {
+      "id": "S02",
+      "name": "Open with known age (scripted greeting)",
+      "focus": ["C1", "C7", "C4"],
+      "lead": { "childAge": "8", "name": "Sam" },
+      "greetingOnly": true,
+      "expect": {
+        "mustMatchAll": [
+          "(?i)excited.*exploring steamoji",
+          "(?i)8-year-old|8 year old"
+        ],
+        "mustNotMatch": [
+          "(?i)saturday",
+          "(?i)which day",
+          "(?i)book a free trial",
+          "(?i)how old is your child"
+        ],
+        "maxQuestions": 1,
+        "notes": "Scripted greeting must use excited-exploring + age wording."
+      }
+    },
+    {
+      "id": "S03",
+      "name": "Age 5 junior path",
+      "focus": ["C7", "C2"],
+      "lead": null,
+      "messages": [{ "role": "user", "content": "She's 5" }],
+      "expect": {
+        "mustMatchAll": ["(?i)junior"],
+        "mustNotMatch": [
+          "(?i)\\[BOOK:",
+          "(?i)saturday",
+          "(?i)which day might work|what times are open",
+          "(?i)let'?s (book|schedule)"
+        ],
+        "maxQuestions": 1,
+        "llmJudge": true,
+        "notes": "Junior affirm; qualify location if needed; no booking CTA."
+      }
+    },
+    {
+      "id": "S04",
+      "name": "Out of range age",
+      "focus": ["C7", "C2"],
+      "lead": null,
+      "messages": [{ "role": "user", "content": "He's 16" }],
+      "expect": {
+        "mustMatchAll": ["(?i)5\\s*[–-]\\s*14|ages 5"],
+        "mustNotMatch": [
+          "(?i)free trial",
+          "(?i)book|schedule",
+          "(?i)\\[BOOK:",
+          "(?i)perfect fit"
+        ],
+        "llmJudge": true,
+        "notes": "Politely out of range; no trial language."
+      }
+    },
+    {
+      "id": "S05",
+      "name": "Cost before qualify",
+      "focus": ["C6", "C2"],
+      "lead": null,
+      "messages": [{ "role": "user", "content": "How much is membership?" }],
+      "expect": {
+        "mustMatchAny": ["(?i)how old", "(?i)kirkland|get to|location|commute"],
+        "mustNotMatch": [
+          "(?i)\\$\\s*349|\\$\\s*399|\\$\\s*225",
+          "(?i)\\b349\\b|\\b399\\b|\\b225\\b",
+          "(?i)per month|/mo",
+          "(?i)saturday|which day|\\[BOOK:"
+        ],
+        "llmJudge": true,
+        "notes": "No membership dollars; must qualify; no booking."
+      }
+    },
+    {
+      "id": "S06",
+      "name": "Cost after qualify",
+      "focus": ["C6", "C4"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "My daughter is 9" },
+        {
+          "role": "assistant",
+          "content": "9 is a perfect fit for Steamoji Kirkland. Are you able to get to our Kirkland academy fairly easily?"
+        },
+        { "role": "user", "content": "Yes we live in Kirkland" },
+        {
+          "role": "assistant",
+          "content": "Great — you're a strong fit. What questions can I help with?"
+        },
+        { "role": "user", "content": "How much does it cost?" }
+      ],
+      "expect": {
+        "mustNotMatch": [
+          "(?i)\\$\\s*349|\\$\\s*399|\\$\\s*225",
+          "(?i)\\b349\\b|\\b399\\b|\\b225\\b",
+          "(?i)saturday morning|weekday after 2",
+          "(?i)which day could work|what times are open",
+          "(?i)\\[BOOK:"
+        ],
+        "maxQuestions": 1,
+        "llmJudge": true,
+        "notes": "No $; invite questions OK; no day/time hard CTA."
+      }
+    },
+    {
+      "id": "S07",
+      "name": "How Steamoji works",
+      "focus": ["C5", "C4", "C2"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "Walk me through how Steamoji works" }
+      ],
+      "expect": {
+        "mustMatchAll": ["(?i)makerspace", "(?i)maker mindset|mindset"],
+        "mustNotMatch": [
+          "(?i)saturday morning or a weekday",
+          "(?i)which day might work for a visit",
+          "(?i)\\[BOOK:"
+        ],
+        "llmJudge": true,
+        "notes": "Makerspace + mindset; invite questions; no day booking while unqualified."
+      }
+    },
+    {
+      "id": "S08",
+      "name": "Camps for age 8",
+      "focus": ["C8"],
+      "lead": null,
+      "messages": [
+        {
+          "role": "user",
+          "content": "What camps do you have for an 8 year old?"
+        }
+      ],
+      "expect": {
+        "mustMatchAll": [
+          "(?i)steamoji\\.com/camps/wa-kirkland",
+          "(?i)ages?\\s*5\\+|5\\+"
+        ],
+        "mustNotMatch": ["(?i)\\[BOOK:"],
+        "llmJudge": true,
+        "notes": "Must link Kirkland camps page and include an Ages 5+ option for an 8yo."
+      }
+    },
+    {
+      "id": "S09",
+      "name": "Parent at trial",
+      "focus": ["C9"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "She is 8" },
+        {
+          "role": "assistant",
+          "content": "8 is a perfect fit. Are you able to get to Kirkland fairly easily?"
+        },
+        { "role": "user", "content": "Yes, Kirkland" },
+        {
+          "role": "assistant",
+          "content": "Great. What questions can I help with?"
+        },
+        {
+          "role": "user",
+          "content": "Do I need to be there for the free trial?"
+        }
+      ],
+      "expect": {
+        "mustMatchAll": ["(?i)parent|guardian", "(?i)\\b30\\b|thirty"],
+        "mustNotMatch": [
+          "(?i)drop[- ]?off is (fine|ok|okay)|you can drop (them|him|her) off"
+        ],
+        "llmJudge": true,
+        "notes": "Parent attends; ~30 minutes; not drop-off."
+      }
+    },
+    {
+      "id": "S10",
+      "name": "Trial request before location",
+      "focus": ["C2"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "My son is 10" },
+        {
+          "role": "assistant",
+          "content": "10 is a perfect fit for Steamoji Kirkland."
+        },
+        {
+          "role": "user",
+          "content": "Can we book a free trial Saturday morning?"
+        }
+      ],
+      "expect": {
+        "mustMatchAny": [
+          "(?i)kirkland",
+          "(?i)get to",
+          "(?i)located|location",
+          "(?i)commute"
+        ],
+        "mustNotMatch": [
+          "(?i)\\[BOOK:",
+          "(?i)you'?re (all )?set|reserved|locked in"
+        ],
+        "llmJudge": true,
+        "notes": "Must not book; must ask Kirkland access first."
+      }
+    },
+    {
+      "id": "S11",
+      "name": "Availability when qualified",
+      "focus": ["C10", "C2"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "She's 9 and we live in Kirkland" },
+        {
+          "role": "assistant",
+          "content": "9 is a perfect fit near Kirkland. What questions can I help with?"
+        },
+        {
+          "role": "user",
+          "content": "What free trial times are open this Friday?"
+        }
+      ],
+      "expect": {
+        "mustMatchAll": ["(?i)friday"],
+        "mustMatchAny": ["(?i)\\d{1,2}:\\d{2}", "(?i)\\d{1,2}\\s*(am|pm)"],
+        "mustNotMatch": ["(?i)\\[BOOK:"],
+        "llmJudge": true,
+        "notes": "List real Friday times; do not auto-book without confirm."
+      }
+    },
+    {
+      "id": "S12",
+      "name": "Memory recall",
+      "focus": ["C11"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "My kid is 7 and we live in Kirkland" },
+        {
+          "role": "assistant",
+          "content": "7 is a perfect fit near Kirkland. What questions can I help with?"
+        },
+        { "role": "user", "content": "What do you know about me?" }
+      ],
+      "expect": {
+        "mustMatchAll": ["(?i)\\b7\\b", "(?i)kirkland"],
+        "mustNotMatch": [
+          "(?i)don'?t have (your|any) details",
+          "(?i)nothing yet",
+          "(?i)how old is your child"
+        ],
+        "llmJudge": true,
+        "notes": "Must recall age 7 + Kirkland; must not re-ask age."
+      }
+    },
+    {
+      "id": "S13",
+      "name": "Competitor differentiation",
+      "focus": ["C5", "C3", "C4"],
+      "lead": null,
+      "messages": [
+        {
+          "role": "user",
+          "content": "How is this different from Code Ninjas?"
+        }
+      ],
+      "expect": {
+        "mustMatchAny": [
+          "(?i)makerspace",
+          "(?i)maker mindset",
+          "(?i)holistic"
+        ],
+        "mustNotMatch": [
+          "(?i)what does (your|the) (child|kid) like",
+          "(?i)saturday morning or a weekday after 2",
+          "(?i)which day could work"
+        ],
+        "maxQuestions": 1,
+        "llmJudge": true,
+        "notes": "Differentiate; no interest quiz; no hard book CTA."
+      }
+    },
+    {
+      "id": "S14",
+      "name": "Beginner question — no Saturday spam",
+      "focus": ["C4", "C3"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "She's 8 and we're in Kirkland" },
+        {
+          "role": "assistant",
+          "content": "8 is a perfect fit near Kirkland. What questions can I help with?"
+        },
+        { "role": "user", "content": "Do kids need prior experience?" }
+      ],
+      "expect": {
+        "mustMatchAny": [
+          "(?i)beginner",
+          "(?i)welcome",
+          "(?i)no (prior )?experience",
+          "(?i)leveled|all levels"
+        ],
+        "mustNotMatch": [
+          "(?i)saturday",
+          "(?i)weekday after 2",
+          "(?i)which day",
+          "(?i)what does (she|he|your child) like"
+        ],
+        "maxQuestions": 1,
+        "llmJudge": true,
+        "notes": "Answer beginners; no booking-day CTA."
+      }
+    },
+    {
+      "id": "S15",
+      "name": "Must not re-ask known age on cost",
+      "focus": ["C6", "C11"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "My son is 11 and we can get to Kirkland" },
+        {
+          "role": "assistant",
+          "content": "11 is a perfect fit near Kirkland. What questions can I help with?"
+        },
+        { "role": "user", "content": "How much is the membership?" }
+      ],
+      "expect": {
+        "mustNotMatch": [
+          "(?i)how old is your child",
+          "(?i)how old.*child",
+          "(?i)\\$\\s*349|\\$\\s*399|\\$\\s*225",
+          "(?i)\\b349\\b|\\b399\\b|\\b225\\b"
+        ],
+        "llmJudge": true,
+        "notes": "Age+location known — do not re-ask age; still no $ dump."
+      }
+    },
+    {
+      "id": "S16",
+      "name": "Interest bait — no discovery interview",
+      "focus": ["C3", "C4"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "She's 8 and we're in Kirkland" },
+        {
+          "role": "assistant",
+          "content": "8 is a perfect fit near Kirkland. What questions can I help with?"
+        },
+        {
+          "role": "user",
+          "content": "What should I tell you about my kid's interests?"
+        }
+      ],
+      "expect": {
+        "mustNotMatch": [
+          "(?i)does (she|he) like robotics",
+          "(?i)coding or robotics",
+          "(?i)what are (her|his|their) hobbies",
+          "(?i)school type",
+          "(?i)saturday morning"
+        ],
+        "llmJudge": true,
+        "notes": "Should defer interests to trial / keep light — not launch a quiz."
+      }
+    },
+    {
+      "id": "S17",
+      "name": "Hard ask for monthly price",
+      "focus": ["C6"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "Kid is 9, we live in Kirkland" },
+        {
+          "role": "assistant",
+          "content": "9 is a perfect fit near Kirkland. What questions can I help with?"
+        },
+        {
+          "role": "user",
+          "content": "Just tell me the monthly price number."
+        }
+      ],
+      "expect": {
+        "mustNotMatch": [
+          "(?i)\\$\\s*\\d+",
+          "(?i)\\b349\\b|\\b399\\b|\\b225\\b",
+          "(?i)per month|/mo"
+        ],
+        "llmJudge": true,
+        "notes": "Even under pressure, no membership dollar figures."
+      }
+    },
+    {
+      "id": "S18",
+      "name": "Drop-off insistence",
+      "focus": ["C9"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "She's 7 and we're local to Kirkland" },
+        {
+          "role": "assistant",
+          "content": "7 is a perfect fit. What questions can I help with?"
+        },
+        {
+          "role": "user",
+          "content": "For the free trial I'll just drop her off — that's fine right?"
+        }
+      ],
+      "expect": {
+        "mustMatchAny": ["(?i)parent", "(?i)guardian", "(?i)should (come|attend|be there)"],
+        "mustNotMatch": [
+          "(?i)drop[- ]?off is (fine|ok|okay|no problem)",
+          "(?i)yes,? you can drop"
+        ],
+        "llmJudge": true,
+        "notes": "Must require parent/guardian; must not approve drop-off."
+      }
+    },
+    {
+      "id": "S19",
+      "name": "Camps for age 6 — not 10+ only",
+      "focus": ["C8"],
+      "lead": null,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Any camps for my 6 year old?"
+        }
+      ],
+      "expect": {
+        "mustMatchAll": ["(?i)ages?\\s*5\\+|5\\+"],
+        "mustNotMatch": [
+          "(?i)only .*ages?\\s*10\\+",
+          "(?i)\\[BOOK:"
+        ],
+        "llmJudge": true,
+        "notes": "Must suggest Ages 5+ options appropriate for a 6yo."
+      }
+    },
+    {
+      "id": "S20",
+      "name": "Unqualified how-it-works — no trial day ask",
+      "focus": ["C2", "C4", "C5"],
+      "lead": null,
+      "messages": [
+        { "role": "user", "content": "Tell me about Steamoji" }
+      ],
+      "expect": {
+        "mustMatchAny": ["(?i)makerspace", "(?i)5\\s*[–-]\\s*14|ages 5"],
+        "mustNotMatch": [
+          "(?i)saturday or a weekday",
+          "(?i)which day could work",
+          "(?i)want to (book|grab) a (free )?trial",
+          "(?i)\\[BOOK:"
+        ],
+        "llmJudge": true,
+        "notes": "Educate; invite questions; no trial-day push before qualify."
+      }
+    }
+  ]
+}

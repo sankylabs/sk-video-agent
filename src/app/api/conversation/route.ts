@@ -41,10 +41,25 @@ export async function POST(req: Request) {
         ? error.message
         : "Failed to start living video conversation";
     console.error("[tavus conversation]", message);
+    const lower = message.toLowerCase();
+    const outOfMinutes =
+      lower.includes("minute") ||
+      lower.includes("credit") ||
+      lower.includes("quota") ||
+      lower.includes("concurrency") ||
+      lower.includes("limit") ||
+      lower.includes("payment") ||
+      lower.includes("402") ||
+      lower.includes("insufficient");
     return NextResponse.json(
       {
         error: message,
-        needsSetup: message.toLowerCase().includes("api key"),
+        outOfMinutes,
+        suggestRehearsal: true,
+        needsSetup: lower.includes("api key"),
+        hint: outOfMinutes
+          ? "Tavus conversational minutes are exhausted. Use Script rehearsal (free) to keep testing Maya’s pitch without upgrading."
+          : undefined,
       },
       { status: 502 },
     );

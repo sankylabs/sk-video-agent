@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  getTavusApiKey,
   hasLivingVideo,
   setTavusApiKey,
+  tavusKeySource,
 } from "@/lib/runtime-secrets";
 import {
   clearCachedPal,
@@ -19,12 +19,7 @@ const bodySchema = z.object({
 export async function GET() {
   return NextResponse.json({
     configured: hasLivingVideo(),
-    source: getTavusApiKey()
-      ? process.env.TAVUS_API_KEY &&
-        getTavusApiKey() === process.env.TAVUS_API_KEY
-        ? "env"
-        : "runtime"
-      : null,
+    source: tavusKeySource(),
   });
 }
 
@@ -60,14 +55,16 @@ export async function POST(req: Request) {
       configured: true,
       palId: pal.palId,
       faceId: pal.faceId,
+      persisted: true,
       message:
-        "Key accepted. Starting living video with a photoreal talking avatar.",
+        "Key saved on this machine. You won’t need to paste it again after restarts.",
     });
   } catch (error) {
     // Key is valid even if custom PAL creation fails — stock face path still works.
     return NextResponse.json({
       ok: true,
       configured: true,
+      persisted: true,
       warning:
         error instanceof Error
           ? error.message

@@ -1,17 +1,19 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { siteConfig } from "./config";
+import { buildCampsBrief } from "./camps";
 import { buildMayaSystemPrompt, mayaGreeting } from "./maya-persona";
 import { getTavusApiKey } from "./runtime-secrets";
 import { buildAvailabilityBrief } from "./schedule";
+import { inferQualifyContext, isTrialQualified, trialQualifyGap } from "./qualify";
 
 /** Default Maya face (Tavus face / replica id). */
-export const STOCK_FEMALE_FACE_ID = "r9664272580d";
+export const STOCK_FEMALE_FACE_ID = "raf6459c9b82";
 /** Tavus stock Sales Development Rep PAL — reliable on most accounts. */
 export const STOCK_SALES_PAL_ID = "pcb7a34da5fe";
 
 /** Bump when PAL layers / face / interrupt settings change so we refresh cached PAL. */
-const PAL_CONFIG_VERSION = 5;
+const PAL_CONFIG_VERSION = 11;
 
 type LeadLike = {
   name?: string;
@@ -217,10 +219,23 @@ export async function createLivingConversation(lead?: LeadLike | null) {
   const { palId, faceId } = await ensureMayaPal();
   const greeting = mayaGreeting(lead ?? undefined);
   const { brief } = await buildAvailabilityBrief(10);
+  const qualify = inferQualifyContext([], lead ?? null);
+  const campsBrief = await buildCampsBrief(qualify.age);
   const context = `${buildMayaSystemPrompt(lead ?? undefined)}
 
-## LIVE FREE-SESSION AVAILABILITY (use for booking questions)
+## SESSION GOAL
+Qualify (age 5–14 + Kirkland access) before suggesting a free trial. Keep them comfortable; invite questions; only then soft-invite trial and offer mixed open times from the availability list (not Saturday-only).
+
+## KNOWN QUALIFICATION SO FAR
+- Child age: ${qualify.age != null ? String(qualify.age) : "UNKNOWN"}
+- Location / Kirkland access: ${qualify.locationKnown ? "KNOWN" : "UNKNOWN"}
+- Free-trial ready: ${isTrialQualified(qualify) ? "YES" : `NO — ${trialQualifyGap(qualify)}`}
+
+## LIVE FREE-SESSION AVAILABILITY (use for booking only when trial-ready)
 ${brief}
+
+## LIVE KIRKLAND CAMPS (use when they ask about camps)
+${campsBrief}
 `;
 
   const shared = {
