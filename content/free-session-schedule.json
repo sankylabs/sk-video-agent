@@ -1,6 +1,6 @@
 {
   "timezone": "America/Los_Angeles",
-  "sessionMinutes": 60,
+  "sessionMinutes": 30,
   "weeklyHours": {
     "monday": { "open": "14:00", "close": "19:00" },
     "tuesday": { "open": "14:00", "close": "19:00" },
@@ -12,5 +12,5 @@
   },
   "slotIntervalMinutes": 30,
   "blockedSlots": [],
-  "notes": "Edit blockedSlots as ISO datetimes (America/Los_Angeles local wall times as YYYY-MM-DDTHH:mm) when a free-session slot is taken. Replace this file with a live booking API later."
+  "notes": "Fallback only when GHL is not configured. Live availability/booking uses GHL_CALENDAR_ID (default m4L3dVKB7UyCfPFjQpK1). blockedSlots still applies to the local fallback generator."
 }

@@ -5,9 +5,14 @@ import { buildMayaSms, sendSms } from "@/lib/sms";
 
 const bodySchema = z.object({
   name: z.string().trim().max(80).optional(),
+  email: z.string().trim().email().max(120).optional(),
   phone: z.string().trim().max(40).optional(),
   childName: z.string().trim().max(80).optional(),
   childAge: z.string().trim().max(20).optional(),
+  childName2: z.string().trim().max(80).optional(),
+  childAge2: z.string().trim().max(20).optional(),
+  childName3: z.string().trim().max(80).optional(),
+  childAge3: z.string().trim().max(20).optional(),
   notes: z.string().trim().max(500).optional(),
   sendSms: z.boolean().optional(),
 });
