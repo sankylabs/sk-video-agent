@@ -1,7 +1,7 @@
 export const siteConfig = {
   brand: "Steamoji Kirkland",
   personaName: "Maya",
-  personaTitle: "Enrollment Advisor",
+  personaTitle: "AI Enrollment Advisor",
   tagline: "Kids stay engaged. Parents see progress.",
   mission:
     "Train the next generation of Master Makers — mentoring kids to develop a Maker Mindset through hands-on STEM, creativity, adaptability, and resilience.",

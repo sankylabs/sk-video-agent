@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { hydrateLeadMemory } from "@/lib/memory";
 import { getLead } from "@/lib/leads";
 import { hasLivingVideo } from "@/lib/runtime-secrets";
 import {
@@ -15,9 +16,9 @@ export async function POST(req: Request) {
   if (!hasLivingVideo()) {
     return NextResponse.json(
       {
-        error: "Living video not configured",
+        error: "Video chat isn’t available right now",
         needsSetup: true,
-        hint: "Paste your Tavus API key first (it does not need to start with tvsk_).",
+        hint: "Maya’s video chat isn’t available at the moment. You can message her instead, or book a free session online.",
       },
       { status: 503 },
     );
@@ -25,7 +26,10 @@ export async function POST(req: Request) {
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   const leadId = parsed.success ? parsed.data.leadId : undefined;
-  const lead = leadId ? await getLead(leadId) : null;
+  let lead = leadId ? await getLead(leadId) : null;
+  if (lead) {
+    lead = await hydrateLeadMemory(lead);
+  }
 
   try {
     const conversation = await createLivingConversation(lead);
@@ -56,10 +60,10 @@ export async function POST(req: Request) {
         error: message,
         outOfMinutes,
         suggestRehearsal: true,
-        needsSetup: lower.includes("api key"),
+        needsSetup: false,
         hint: outOfMinutes
-          ? "Tavus conversational minutes are exhausted. Use Script rehearsal (free) to keep testing Maya’s pitch without upgrading."
-          : undefined,
+          ? "Maya’s video chat is busy right now. You can message her instead, or book a free session and we’ll see you soon."
+          : "We couldn’t start the video chat. Please try again, message Maya, or book a free session.",
       },
       { status: 502 },
     );

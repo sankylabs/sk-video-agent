@@ -1,5 +1,5 @@
 import { LiveMaya } from "@/components/LiveMaya";
-import { getLead } from "@/lib/leads";
+import { openLeadSession } from "@/lib/memory";
 
 export default async function LeadChatPage({
   params,
@@ -7,23 +7,26 @@ export default async function LeadChatPage({
   params: Promise<{ leadId: string }>;
 }) {
   const { leadId } = await params;
-  const lead = await getLead(leadId);
+  const session = await openLeadSession(leadId);
 
   return (
     <main className="chat-page">
       <LiveMaya
         lead={
-          lead
+          session.lead
             ? {
-                id: lead.id,
-                name: lead.name,
-                email: lead.email,
-                childName: lead.childName,
-                childAge: lead.childAge,
-                notes: lead.notes,
+                id: session.lead.ghlContactId || session.lead.id,
+                name: session.lead.name,
+                email: session.lead.email,
+                childName: session.lead.childName,
+                childAge: session.lead.childAge,
+                notes: session.lead.notes,
+                bookedStart: session.lead.bookedStart,
+                bookedLabel: session.lead.bookedLabel,
               }
             : { id: leadId }
         }
+        initialMessages={session.messages}
       />
     </main>
   );

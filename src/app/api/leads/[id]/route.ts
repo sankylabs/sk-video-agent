@@ -10,5 +10,7 @@ export async function GET(
   if (!lead) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
-  return NextResponse.json({ lead });
+  return NextResponse.json({
+    lead: { ...lead, conversation: undefined },
+  });
 }

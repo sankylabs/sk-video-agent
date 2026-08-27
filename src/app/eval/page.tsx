@@ -26,8 +26,8 @@ export default async function EvalResultsPage() {
           {siteConfig.brand}
         </Link>
         <div className="nav-actions">
-          <Link className="ghost-link" href="/chat">
-            Talk with Maya
+          <Link className="ghost-link" href="/send">
+            Send a lead link
           </Link>
           <Link className="nav-cta" href="/">
             Home

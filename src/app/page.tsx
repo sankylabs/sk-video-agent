@@ -1,48 +1,34 @@
-import Link from "next/link";
-import { LeadLinkForm } from "@/components/LeadLinkForm";
-import { LiveMaya } from "@/components/LiveMaya";
 import { siteConfig } from "@/lib/config";
 
 export default function HomePage() {
   return (
-    <main className="page home-1mind">
-      <nav className="nav">
-        <div className="brand-mark">{siteConfig.brand}</div>
-        <div className="nav-actions">
-          <Link className="ghost-link" href="/eval">
-            Eval results
-          </Link>
-          <a className="ghost-link" href={siteConfig.freeSessionUrl}>
-            Book free session
-          </a>
-          <Link className="nav-cta" href="/chat">
-            Open full call
-          </Link>
-        </div>
-      </nav>
+    <main className="page landing">
+      <p className="eyebrow">{siteConfig.brand}</p>
+      <h1 className="landing-title">{siteConfig.tagline}</h1>
+      <p className="lede">{siteConfig.mission}</p>
 
-      <section className="superhuman-hero">
-        <div className="superhuman-brand">
-          <p className="eyebrow">AI enrollment superhuman</p>
-          <h1>
-            {siteConfig.brand}
-          </h1>
-          <p className="lede">
-            Don&apos;t take our word for it. Ask Maya — live on this page.
-          </p>
-        </div>
+      <p className="landing-meta">
+        {siteConfig.address}
+        <br />
+        {siteConfig.hours}
+        <br />
+        {siteConfig.ages} · {siteConfig.phone}
+      </p>
 
-        <LiveMaya embedded />
-      </section>
+      <div className="landing-actions">
+        <a className="nav-cta" href={siteConfig.freeSessionUrl}>
+          Book a free session
+        </a>
+        <a className="ghost-link" href={siteConfig.websiteUrl}>
+          Academy website
+        </a>
+      </div>
 
-      <section className="section" id="send-link">
-        <h2>Text Maya to a lead</h2>
-        <p>
-          Create a personalized call link and paste it into SMS. Parents open it
-          and talk with Maya face-to-face style — then book a free session.
-        </p>
-        <LeadLinkForm />
-      </section>
+      <p className="landing-note">
+        To talk with Maya, our AI enrollment advisor, use the personal link from
+        your text or email. It looks like{" "}
+        <code>/chat/your-id</code>.
+      </p>
     </main>
   );
 }

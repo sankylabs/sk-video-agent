@@ -2,24 +2,46 @@ import { promises as fs } from "fs";
 import path from "path";
 import { siteConfig } from "./config";
 import { buildCampsBrief } from "./camps";
-import { buildMayaSystemPrompt, mayaGreeting } from "./maya-persona";
+import { buildMayaSystemPrompt } from "./maya-persona";
+import { mayaGreeting, mayaReturningGreeting } from "./greeting";
+import { resolveBookingStatus } from "./memory";
 import { getTavusApiKey } from "./runtime-secrets";
 import { buildAvailabilityBrief } from "./schedule";
-import { inferQualifyContext, isTrialQualified, trialQualifyGap } from "./qualify";
+import { inferQualifyContext, isTrialQualified, isValidParentEmail, trialQualifyGap } from "./qualify";
+import { locationSessionNote } from "./locations";
 
 /** Default Maya face (Tavus face / replica id). */
-export const STOCK_FEMALE_FACE_ID = "raf6459c9b82";
+export const STOCK_FEMALE_FACE_ID = "r5dc7c7d0bcb";
 /** Tavus stock Sales Development Rep PAL — reliable on most accounts. */
 export const STOCK_SALES_PAL_ID = "pcb7a34da5fe";
 
 /** Bump when PAL layers / face / interrupt settings change so we refresh cached PAL. */
-const PAL_CONFIG_VERSION = 11;
+const PAL_CONFIG_VERSION = 22;
 
 type LeadLike = {
   name?: string;
+  email?: string;
   childName?: string;
   childAge?: string;
+  childName2?: string;
+  childAge2?: string;
+  childName3?: string;
+  childAge3?: string;
+  childSchool?: string;
+  childGrade?: string;
+  location?: string;
+  resideKirkland?: string;
+  city?: string;
+  tags?: string[];
+  opportunityStage?: string;
+  interestedInTrial?: string;
+  crmNotes?: string;
   notes?: string;
+  bookedStart?: string;
+  bookedLabel?: string;
+  ghlAppointmentId?: string;
+  ghlContactId?: string;
+  conversation?: { role: "user" | "assistant"; content: string }[];
 };
 
 type CachedPal = {
@@ -217,18 +239,42 @@ async function tryCreateConversation(payload: Record<string, unknown>) {
 
 export async function createLivingConversation(lead?: LeadLike | null) {
   const { palId, faceId } = await ensureMayaPal();
-  const greeting = mayaGreeting(lead ?? undefined);
+  const booking = await resolveBookingStatus(lead ?? {});
+  const returning =
+    Boolean(lead?.conversation?.length) || booking.state !== "none";
+  const greeting = returning
+    ? mayaReturningGreeting(lead ?? undefined, booking)
+    : mayaGreeting(lead ?? undefined);
   const { brief } = await buildAvailabilityBrief(10);
-  const qualify = inferQualifyContext([], lead ?? null);
+  const qualify = inferQualifyContext(lead?.conversation ?? [], lead ?? null);
   const campsBrief = await buildCampsBrief(qualify.age);
-  const context = `${buildMayaSystemPrompt(lead ?? undefined)}
+  const emailKnown = isValidParentEmail(qualify.email || lead?.email);
+  const context = `${buildMayaSystemPrompt(
+    {
+      ...(lead ?? {}),
+      ghlStatus: booking.ghlStatus,
+      bookedStart: booking.start || lead?.bookedStart,
+      bookedLabel: booking.label || lead?.bookedLabel,
+      ghlAppointmentId: booking.ghlAppointmentId || lead?.ghlAppointmentId,
+    },
+    { returning },
+  )}
 
 ## SESSION GOAL
-Qualify (age 5–14 + Kirkland access) before suggesting a free trial. Keep them comfortable; invite questions; only then soft-invite trial and offer mixed open times from the availability list (not Saturday-only).
+Stay on Steamoji Kirkland / kids STEM education — if they go off-topic, steer back without answering it. ${
+    returning
+      ? "Continue the prior conversation on this chat link. Do not restart qualification. Honor booking status (upcoming vs past / reschedule)."
+      : "Qualify (age 5–14 + where they live) before suggesting a free trial. If they name a city with another Steamoji, mention that academy once and let them choose Kirkland or the closer site."
+  } Keep them comfortable; answer what they ask without repeatedly inviting more questions; only then soft-invite trial and offer mixed open times from the availability list (not Saturday-only).
 
 ## KNOWN QUALIFICATION SO FAR
 - Child age: ${qualify.age != null ? String(qualify.age) : "UNKNOWN"}
-- Location / Kirkland access: ${qualify.locationKnown ? "KNOWN" : "UNKNOWN"}
+${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
+- Parent email: ${
+    emailKnown
+      ? `KNOWN (${qualify.email || lead?.email}) — do not re-ask`
+      : "UNKNOWN — required before booking; ask when they confirm a slot"
+  }
 - Free-trial ready: ${isTrialQualified(qualify) ? "YES" : `NO — ${trialQualifyGap(qualify)}`}
 
 ## LIVE FREE-SESSION AVAILABILITY (use for booking only when trial-ready)

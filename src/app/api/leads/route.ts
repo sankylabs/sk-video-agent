@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
   const lead = await createLead(parsed.data);
   const origin = process.env.PUBLIC_APP_URL || new URL(req.url).origin;
-  const chatUrl = `${origin.replace(/\/$/, "")}/chat/${lead.id}`;
+  const chatUrl = `${origin.replace(/\/$/, "")}/chat/${lead.ghlContactId || lead.id}`;
   const smsBody = buildMayaSms({
     chatUrl,
     name: lead.name,
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({
-    lead,
+    lead: { ...lead, conversation: undefined },
     chatUrl,
     smsBody,
     sms,

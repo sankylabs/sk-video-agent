@@ -1,8 +1,10 @@
 import { siteConfig } from "./config";
 import { fallbackCampsBrief } from "./camps";
 import { ageAffirmation, parseChildAge } from "./greeting";
+import { demoLocationReply, PLACE_RE } from "./locations";
 import {
   childAgeRecallReply,
+  EMAIL_NEEDED_FOR_BOOKING,
   isChildAgeQuestion,
   isKnownAboutQuestion,
   isTrialQualified,
@@ -13,6 +15,28 @@ import {
 
 const PARENT_AT_TRIAL_REPLY =
   `Yes — a parent or guardian should come to the free trial. While your child enjoys a project, we walk you through the whole program with a tour of the academy.`;
+
+const ON_TOPIC =
+  /\b(steamoji|makerspace|maker|stem|camp|membership|trial|session|tour|academy|kirkland|enroll|booking|book|slot|schedule|hours|tuition|price|cost|robotics|coding|3d|engineering|child|kid|son|daughter|age|email|commute|program)\b/i;
+
+const OFF_TOPIC =
+  /\b(weather|forecast|stock|crypto|bitcoin|election|politic|trump|biden|recipe|cook|homework|math problem|solve this|movie|netflix|sports? score|nfl|nba|mlb|soccer|who won|capital of|tell me a joke|write (a |me )?(poem|essay|code)|medical|diagnos|lawsuit|legal advice)\b/i;
+
+function isOffTopicQuestion(text: string) {
+  if (ON_TOPIC.test(text)) return false;
+  if (/@/.test(text)) return false;
+  if (/^(1[0-8]|[1-9]|yes|yeah|yep|ok|okay|sure|thanks|thank you|hi|hello|hey)$/i.test(text.trim())) {
+    return false;
+  }
+  return OFF_TOPIC.test(text);
+}
+
+function steerBackToSteamoji(ctx: QualifyContext) {
+  if (ctx.age == null) {
+    return `I'm here for Steamoji Kirkland — kids STEM makerspace for ages 5–14. How old is your child?`;
+  }
+  return `I'm here for Steamoji Kirkland — programs, camps, and free trials at our makerspace. What would you like to know about that?`;
+}
 
 function isParentAttendanceQuestion(
   text: string,
@@ -63,6 +87,7 @@ export function demoReply(
     priorAssistant?: string;
     recentUserTexts?: string[];
     campsBrief?: string;
+    emailKnown?: boolean;
   },
 ): string {
   const t = userText.toLowerCase();
@@ -72,6 +97,11 @@ export function demoReply(
     locationKnown: false,
   };
   const trialReady = isTrialQualified(ctx);
+  const emailKnown = opts?.emailKnown ?? Boolean(ctx.email);
+
+  if (isOffTopicQuestion(userText)) {
+    return steerBackToSteamoji(ctx);
+  }
 
   if (isChildAgeQuestion(userText)) {
     return childAgeRecallReply(ctx);
@@ -79,6 +109,27 @@ export function demoReply(
 
   if (isKnownAboutQuestion(userText)) {
     return knownAboutReply(ctx);
+  }
+
+  // Parent confirming a slot while email is still missing
+  if (
+    !emailKnown &&
+    /\b(yes|yeah|yep|book|reserve|that works|sounds good|perfect|confirm)\b/i.test(
+      userText,
+    ) &&
+    /\b(open|hold|reserve|calendar|trial|slot|available)\b/i.test(
+      opts?.priorAssistant || "",
+    )
+  ) {
+    return EMAIL_NEEDED_FOR_BOOKING;
+  }
+
+  // Parent just shared an email after we asked
+  if (
+    /@/.test(userText) &&
+    /\b(email|e-mail|invite|calendar)\b/i.test(opts?.priorAssistant || "")
+  ) {
+    return `Thanks — I've got your email. I'll get that free session on the calendar for you.`;
   }
 
   // Parent stating an age (e.g. "she's 5", "9", "he's twelve")
@@ -94,12 +145,12 @@ export function demoReply(
   ) {
     if (age === 5) {
       return ctx.locationKnown
-        ? `${ageAffirmation(5)} What questions can I help with?`
+        ? ageAffirmation(5)
         : `${ageAffirmation(5)} Are you able to get to our Kirkland academy fairly easily?`;
     }
     if (age >= 5 && age <= 14) {
       return ctx.locationKnown
-        ? `${ageAffirmation(age)} What questions can I help with?`
+        ? ageAffirmation(age)
         : `${ageAffirmation(age)} Are you able to get to our Kirkland academy fairly easily?`;
     }
     return `${ageAffirmation(age)} Is there another child in the family who is 5–14?`;
@@ -127,13 +178,13 @@ export function demoReply(
   }
 
   if (
-    /\b(how (does|do)?\s*steamoji work|how (it|steamoji) works|what is steamoji|why steamoji|tell me about steamoji|walk me through how)\b/.test(
+    /\b(how (does|do)?\s*steamoji work|how (it|steamoji) works|what is steamoji|what's steamoji|what'?s steamoji about|why steamoji|tell me about steamoji|walk me through how)\b/.test(
       t,
     ) ||
     (/\b(walk me through|how does (it|this) work)\b/.test(t) &&
       !/\b(free )?(trial|session|visit|tour)\b/.test(t))
   ) {
-    return `Steamoji is a makerspace for kids 5–14 in Kirkland. We mentor a Maker Mindset — hands-on STEM plus creativity, adaptability, and resilience. Kids work on age-appropriate projects with facilitators; parents see the progress. What questions can I help with?`;
+    return `Steamoji is a makerspace for kids 5–14 in Kirkland. We mentor a Maker Mindset — hands-on STEM plus creativity, adaptability, and resilience. Kids work on age-appropriate projects with facilitators; parents see the progress.`;
   }
 
   if (/\b(birthday|party|group event|private (party|event))\b/.test(t)) {
@@ -193,13 +244,16 @@ export function demoReply(
       return ageAffirmation(age);
     }
     if (ctx.age != null && ctx.age >= 5 && ctx.age <= 14) {
-      return `Absolutely — for a ${ctx.age}-year-old we have age-appropriate projects. What questions can I help with?`;
+      return `Absolutely — for a ${ctx.age}-year-old we have age-appropriate projects.`;
     }
     return `Absolutely — we have age-appropriate projects. How old is your child?`;
   }
 
-  if (/(far|distance|commute|woodinville|clyde|redmond|bellevue|kirkland)/.test(t)) {
-    return `Kirkland families are the easiest fit. Clyde Hill or Woodinville can work if you can come about 1–2x/week. What else are you wondering about?`;
+  if (PLACE_RE.test(t) || /(far|distance|commute)/.test(t)) {
+    const fromTown = t.match(PLACE_RE)?.[0] || ctx.locationHint;
+    const routed = demoLocationReply(fromTown, { ageUnknown: ctx.age == null });
+    if (routed) return routed;
+    return `Kirkland and Woodinville are a great fit for our Kirkland academy. If you're closer to another Steamoji we can mention it — or Kirkland is still welcome if that's easier.${ctx.age == null ? " How old is your child?" : ""}`;
   }
 
   // Availability / day-slot questions are answered by /api/chat via the live calendar.
@@ -215,12 +269,12 @@ export function demoReply(
   }
 
   if (!ctx.locationKnown) {
-    return `${ageAffirmation(ctx.age)} Are you able to get to our Kirkland academy fairly easily?`;
+    return `${ageAffirmation(ctx.age)} Where are you located?`;
   }
 
   if (trialReady) {
-    return `Happy to help — what questions can I clear up about Steamoji? When you're ready, we can also look at a free trial day that works for you.`;
+    return `Happy to help with Steamoji Kirkland — and when you're ready, we can look at a free trial day that works for you.`;
   }
 
-  return `What questions can I help with about Steamoji Kirkland?`;
+  return `Happy to help with Steamoji Kirkland.`;
 }

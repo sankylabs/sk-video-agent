@@ -36,7 +36,7 @@ export async function GET(req: Request) {
 const bookSchema = z.object({
   start: z.string().min(10),
   name: z.string().optional(),
-  email: z.string().email().optional(),
+  email: z.string().trim().email(),
   phone: z.string().optional(),
   childName: z.string().optional(),
   childAge: z.string().optional(),
@@ -52,8 +52,15 @@ const bookSchema = z.object({
 export async function POST(req: Request) {
   const parsed = bookSchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
+    const missingEmail = parsed.error.issues.some((i) =>
+      i.path.includes("email"),
+    );
     return NextResponse.json(
-      { error: "Provide start as YYYY-MM-DDTHH:mm" },
+      {
+        error: missingEmail
+          ? "A parent email is required to book this free session."
+          : "Provide start as YYYY-MM-DDTHH:mm and a valid parent email",
+      },
       { status: 400 },
     );
   }

@@ -7,10 +7,20 @@ import { parseChildAge } from "@/lib/greeting";
 import { buildMayaSystemPrompt } from "@/lib/maya-persona";
 import { getLead, updateLead } from "@/lib/leads";
 import {
+  hydrateLeadMemory,
+  mergeTranscripts,
+  resolveBookingStatus,
+  trimConversation,
+} from "@/lib/memory";
+import {
+  EMAIL_NEEDED_FOR_BOOKING,
+  extractEmailFromText,
   inferQualifyContext,
   isTrialQualified,
+  isValidParentEmail,
   trialQualifyGap,
 } from "@/lib/qualify";
+import { locationSessionNote } from "@/lib/locations";
 import { getOpenAIApiKey } from "@/lib/runtime-secrets";
 import {
   answerAvailabilityQuestion,
@@ -40,14 +50,25 @@ function extractBookMarkers(text: string) {
   return matches.map((m) => m[1].trim());
 }
 
+function ensureAskForEmail(text: string) {
+  const cleaned = stripBookMarkers(text).trim();
+  if (/\b(email|e-mail)\b/i.test(cleaned)) return cleaned;
+  return `${cleaned}${cleaned ? " " : ""}${EMAIL_NEEDED_FOR_BOOKING}`.trim();
+}
+
 export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { messages, leadId } = parsed.data;
-  const lead = leadId ? await getLead(leadId) : null;
+  const { messages: incoming, leadId } = parsed.data;
+  let lead = leadId ? await getLead(leadId) : null;
+  if (lead) {
+    lead = await hydrateLeadMemory(lead);
+  }
+  const booking = lead ? await resolveBookingStatus(lead) : { state: "none" as const };
+  const messages = mergeTranscripts(lead?.conversation, incoming);
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   const priorAssistant = [...messages]
     .reverse()
@@ -73,10 +94,40 @@ export async function POST(req: Request) {
     ? await buildCampsBrief(effectiveAge)
     : null;
 
-  const system = `${buildMayaSystemPrompt(lead ?? undefined)}
+  // Capture email from this turn / history and persist on the lead.
+  const emailFromLatest = extractEmailFromText(userText);
+  const parentEmail = isValidParentEmail(qualify.email)
+    ? qualify.email
+    : emailFromLatest;
+  if (lead?.id && parentEmail && parentEmail !== lead.email) {
+    lead = (await updateLead(lead.id, { email: parentEmail })) ?? lead;
+  }
+
+  const emailKnown = isValidParentEmail(parentEmail);
+
+  const system = `${buildMayaSystemPrompt(
+    {
+      ...(lead ?? {}),
+      email: parentEmail,
+      conversation: messages,
+      ghlStatus: booking.ghlStatus,
+      bookedStart: booking.start || lead?.bookedStart,
+      bookedLabel: booking.label || lead?.bookedLabel,
+      ghlAppointmentId: booking.ghlAppointmentId || lead?.ghlAppointmentId,
+    },
+    { returning: Boolean(lead?.conversation?.length || lead?.bookedStart) },
+  )}
 
 ## SESSION GOAL
-Qualify first (age 5–14 + Kirkland access). Keep them comfortable and clear their questions. Suggest a free trial only when trialReady=yes, then offer mixed open times (not Saturday-only).
+Stay on Steamoji Kirkland / kids STEM education — if they go off-topic, steer back. ${
+    lead?.conversation?.length || lead?.bookedStart
+      ? `This is a returning chat on the same link — continue prior context; do not restart. Honor booking status (upcoming vs past). ${
+          booking.state === "past"
+            ? `Past trial GHL status=${booking.ghlStatus || "unknown"} — respond from that (showed → next steps; noshow/cancelled → reschedule; unknown → ask if they made it).`
+            : ""
+        }`
+      : "Qualify first (age 5–14 + where they live). If they name a city with another Steamoji, mention that academy once and let them choose Kirkland or the closer site."
+  } Keep them comfortable and clear their questions. Suggest a free trial only when trialReady=yes, then offer mixed open times (not Saturday-only).
 
 ## KNOWN QUALIFICATION SO FAR (do not re-ask these)
 - Child age: ${
@@ -88,12 +139,20 @@ Qualify first (age 5–14 + Kirkland access). Keep them comfortable and clear th
         }`
       : "UNKNOWN — ask if needed"
   }
-- Location / Kirkland access: ${
-    qualify.locationKnown
-      ? `KNOWN${qualify.locationHint ? ` (${qualify.locationHint})` : ""}`
-      : "UNKNOWN — needed before suggesting a free trial"
+${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
+- Parent email: ${
+    emailKnown
+      ? `KNOWN (${parentEmail}) — do not re-ask`
+      : "UNKNOWN — required before booking. When they confirm a slot, ask for their email first; do NOT emit [BOOK:…] until you have it."
   }
 - Free-trial ready: ${trialReady ? "YES — may soft-invite trial when they're comfortable" : `NO — ${trialQualifyGap({ ...qualify, age: effectiveAge })}. Do not suggest booking a free trial yet.`}
+${
+  lead?.pendingBookStart && emailKnown
+    ? `- Pending confirmed slot: ${lead.pendingBookStart} — email is now known; include [BOOK:${lead.pendingBookStart}] to finish booking.`
+    : lead?.pendingBookStart && !emailKnown
+      ? `- Pending confirmed slot: ${lead.pendingBookStart} — still waiting on parent email before booking.`
+      : ""
+}
 
 ## LIVE FREE-SESSION AVAILABILITY (source of truth — use only when trial-ready or they ask availability)
 ${brief}
@@ -119,7 +178,11 @@ Matching slot ids: ${
         calendarLookup.matches.map((s) => `${s.label} → [BOOK:${s.start}]`).join("; ") ||
         "none"
       }
-If they confirmed a time that matches, include the [BOOK:…] marker.
+If they confirmed a time that matches${
+        emailKnown
+          ? ", include the [BOOK:…] marker."
+          : ", do NOT include [BOOK:…] yet — ask for their email first, then book once you have it."
+      }
 `
     : ""
 }
@@ -137,6 +200,7 @@ If they confirmed a time that matches, include the [BOOK:…] marker.
     priorAssistant,
     recentUserTexts,
     campsBrief: campsBrief ?? undefined,
+    emailKnown,
   };
 
   if (!apiKey) {
@@ -176,9 +240,10 @@ If they confirmed a time that matches, include the [BOOK:…] marker.
 
   const toBook = extractBookMarkers(content);
   const booked: string[] = [];
+  const bookErrors: string[] = [];
   const bookMeta = {
     name: lead?.name,
-    email: lead?.email,
+    email: parentEmail,
     phone: lead?.phone,
     childName: lead?.childName,
     childAge: lead?.childAge,
@@ -186,17 +251,49 @@ If they confirmed a time that matches, include the [BOOK:…] marker.
     childAge2: lead?.childAge2,
     childName3: lead?.childName3,
     childAge3: lead?.childAge3,
-    leadId: lead?.id,
-    ghlContactId: lead?.ghlContactId,
+    leadId: lead?.ghlContactId || lead?.id,
+    ghlContactId: lead?.ghlContactId || lead?.id,
+    previousAppointmentId: lead?.ghlAppointmentId,
   };
 
   async function recordBook(start: string) {
+    if (!isValidParentEmail(parentEmail)) {
+      if (lead?.id) {
+        lead =
+          (await updateLead(lead.id, { pendingBookStart: start })) ?? lead;
+      }
+      bookErrors.push(EMAIL_NEEDED_FOR_BOOKING);
+      return {
+        ok: false as const,
+        error: EMAIL_NEEDED_FOR_BOOKING,
+      };
+    }
+
     const result = await bookSlot(start, bookMeta);
     if (result.ok) {
       booked.push(result.booking.label || start);
-      if (lead?.id && result.booking.ghlContactId) {
-        await updateLead(lead.id, { ghlContactId: result.booking.ghlContactId });
+      if (lead?.id) {
+        const patch: {
+          ghlContactId?: string;
+          pendingBookStart?: string;
+          bookedStart?: string;
+          bookedLabel?: string;
+          ghlAppointmentId?: string;
+        } = {
+          pendingBookStart: undefined,
+          bookedStart: result.booking.start,
+          bookedLabel: result.booking.label,
+        };
+        if (result.booking.ghlContactId) {
+          patch.ghlContactId = result.booking.ghlContactId;
+        }
+        if (result.booking.ghlAppointmentId) {
+          patch.ghlAppointmentId = result.booking.ghlAppointmentId;
+        }
+        lead = (await updateLead(lead.id, patch)) ?? lead;
       }
+    } else {
+      bookErrors.push(result.error);
     }
     return result;
   }
@@ -205,9 +302,24 @@ If they confirmed a time that matches, include the [BOOK:…] marker.
     await recordBook(start);
   }
 
-  // Demo: if they clearly confirm a looked-up exact slot, book it.
+  // After email arrives, finish a slot we held pending.
   if (
     !toBook.length &&
+    emailKnown &&
+    lead?.pendingBookStart &&
+    (emailFromLatest ||
+      /\b(email|e-mail|@)\b/i.test(userText) ||
+      /\b(yes|yeah|yep|book|reserve|that works|sounds good|perfect|confirm)\b/i.test(
+        userText,
+      ))
+  ) {
+    await recordBook(lead.pendingBookStart);
+  }
+
+  // Demo / confirm path: if they clearly confirm a looked-up exact slot, book it.
+  if (
+    !toBook.length &&
+    !booked.length &&
     calendarLookup?.exact[0] &&
     /\b(yes|yeah|yep|book|reserve|that works|sounds good|perfect|confirm)\b/i.test(
       userText,
@@ -221,8 +333,22 @@ If they confirmed a time that matches, include the [BOOK:…] marker.
   }
 
   content = stripBookMarkers(content);
+
+  if (bookErrors.some((e) => /email/i.test(e)) && !booked.length) {
+    content = ensureAskForEmail(content);
+  }
+
   if (booked.length && !/reserved|booked|on (our )?calendar/i.test(content)) {
     content = `${content} I've reserved ${booked.join(", ")} on our calendar.`;
+  }
+
+  if (lead?.id) {
+    await updateLead(lead.id, {
+      conversation: trimConversation([
+        ...messages,
+        { role: "assistant", content },
+      ]),
+    });
   }
 
   return NextResponse.json({
@@ -230,6 +356,7 @@ If they confirmed a time that matches, include the [BOOK:…] marker.
     content,
     mode,
     booked,
+    bookErrors: bookErrors.length ? bookErrors : undefined,
     openSlotCount: slots.length,
   });
 }

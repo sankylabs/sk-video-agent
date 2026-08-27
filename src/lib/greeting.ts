@@ -46,14 +46,15 @@ export const mayaGreeting = (lead?: {
   childName?: string;
   childAge?: string;
 }) => {
-  const who = lead?.name ? `Hi ${lead.name}!` : "Hi there!";
+  const who = lead?.name?.trim() ? `Hi ${lead.name.trim()}!` : "Hi there!";
   const age = parseChildAge(lead?.childAge);
+  const child = lead?.childName?.trim();
 
   if (age != null && age >= 5 && age <= 14) {
-    const explore = lead?.childName?.trim()
-      ? `we're excited you're exploring Steamoji for ${lead.childName.trim()}, your ${age}-year-old`
-      : `we're excited you're exploring Steamoji for your ${age}-year-old`;
-    return `${who} I'm Maya, an AI enrollment advisor at Steamoji Kirkland — ${explore}. What questions can I help with?`;
+    if (child) {
+      return `${who} I'm Maya, an AI enrollment advisor here at Steamoji Kirkland. So glad you're looking at us for ${child} — ${age} is a great age for the makerspace and we have several kids similar to ${child}'s age enjoying building and learning. Would you like to explore further?`;
+    }
+    return `${who} I'm Maya, an AI enrollment advisor here at Steamoji Kirkland. So glad you're looking at us for your ${age}-year-old — ${age} is a great age for the makerspace and we have several kids that age enjoying building and learning. Would you like to explore further?`;
   }
 
   if (age != null) {
@@ -62,3 +63,43 @@ export const mayaGreeting = (lead?: {
 
   return `${who} I'm Maya, an AI enrollment advisor at Steamoji Kirkland. To start with, let me understand how old your child is?`;
 };
+
+export type GreetingBooking = {
+  state: "none" | "upcoming" | "past";
+  spoken?: string;
+  ghlStatus?: string;
+};
+
+/** Spoken when the same chat URL is opened again. */
+export function mayaReturningGreeting(
+  lead?: { name?: string; childName?: string; childAge?: string },
+  booking?: GreetingBooking,
+) {
+  const who = lead?.name?.trim()
+    ? `Hi ${lead.name.trim()} — nice to see you again!`
+    : "Nice to see you again!";
+
+  if (booking?.state === "upcoming" && booking.spoken) {
+    return `${who} I'm Maya. You're all set for the free trial on ${booking.spoken}. Anything you'd like to go over before then?`;
+  }
+
+  if (booking?.state === "past" && booking.spoken) {
+    const status = (booking.ghlStatus || "").toLowerCase();
+    if (status === "showed" || status === "completed") {
+      return `${who} I'm Maya. Hope the trial on ${booking.spoken} was a good visit. How did it go — any questions about next steps?`;
+    }
+    if (status === "noshow") {
+      return `${who} I'm Maya. Looks like the trial on ${booking.spoken} didn't work out — totally fine. Want to pick a new time?`;
+    }
+    if (status === "cancelled" || status === "canceled" || status === "invalid") {
+      return `${who} I'm Maya. I see the trial on ${booking.spoken} was cancelled. Happy to find a new time, or answer anything else.`;
+    }
+    return `${who} I'm Maya. Your last trial was ${booking.spoken} — that one's passed. Did you make it in, or would you like a new time?`;
+  }
+
+  const child = lead?.childName?.trim();
+  if (child) {
+    return `${who} I'm Maya. We can pick up on ${child} whenever you're ready — what would you like to talk about?`;
+  }
+  return `${who} I'm Maya. We can pick up where we left off — what would you like to talk about?`;
+}

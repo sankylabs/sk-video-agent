@@ -1,4 +1,5 @@
 import { parseChildAge } from "./greeting";
+import { PLACE_RE } from "./locations";
 
 export type ChatTurn = { role: string; content: string };
 
@@ -8,10 +9,45 @@ export type QualifyContext = {
   locationHint?: string;
   name?: string;
   childName?: string;
+  /** Parent email for calendar invites / GHL booking. */
+  email?: string;
 };
 
-const PLACE_RE =
-  /\b(kirkland|woodinville|clyde\s*hill|redmond|bellevue|seattle|bothell|kenmore|juanita|totem\s*lake|sammamish|issaquah)\b/i;
+/** Loose but practical parent-email check (GHL / calendar invite). */
+const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
+
+export function isValidParentEmail(value?: string | null): boolean {
+  const email = value?.trim();
+  if (!email || email.length > 120) return false;
+  return EMAIL_RE.test(email) && !/\s/.test(email);
+}
+
+export function extractEmailFromText(text: string): string | undefined {
+  const match = text.match(EMAIL_RE);
+  if (!match) return undefined;
+  const email = match[0].trim();
+  return isValidParentEmail(email) ? email : undefined;
+}
+
+/** Prefer lead email; otherwise last valid email the parent typed in chat. */
+export function resolveParentEmail(
+  messages: ChatTurn[] = [],
+  lead?: { email?: string } | null,
+): string | undefined {
+  const fromLead = lead?.email?.trim();
+  if (isValidParentEmail(fromLead)) return fromLead;
+
+  let found: string | undefined;
+  for (const msg of messages) {
+    if (msg.role !== "user") continue;
+    const email = extractEmailFromText(msg.content || "");
+    if (email) found = email;
+  }
+  return found;
+}
+
+export const EMAIL_NEEDED_FOR_BOOKING =
+  "I need a parent email to put this on the calendar — what's the best address for the invite?";
 
 const LOCATION_SOFT_RE =
   /\b(near(by)?|local|live in|we'?re in|commute|close by|in the area)\b/i;
@@ -30,14 +66,39 @@ export function inferQualifyContext(
     notes?: string;
     name?: string;
     childName?: string;
+    email?: string;
+    location?: string;
+    resideKirkland?: string;
+    city?: string;
+    tags?: string[];
+    crmNotes?: string;
   } | null,
 ): QualifyContext {
   let age = parseChildAge(lead?.childAge) ?? null;
   let locationHint: string | undefined;
+  const crmBlob = [
+    lead?.notes,
+    lead?.crmNotes,
+    lead?.location,
+    lead?.city,
+    lead?.resideKirkland,
+    lead?.tags?.join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ");
   let locationKnown =
-    PLACE_RE.test(lead?.notes || "") || LOCATION_SOFT_RE.test(lead?.notes || "");
-  const leadPlace = lead?.notes?.match(PLACE_RE)?.[0];
+    PLACE_RE.test(crmBlob) ||
+    LOCATION_SOFT_RE.test(crmBlob) ||
+    /^(yes|y|true|kirkland)\b/i.test(lead?.resideKirkland || "") ||
+    Boolean(lead?.location?.trim()) ||
+    Boolean(lead?.city?.trim());
+  const leadPlace =
+    lead?.location?.match(PLACE_RE)?.[0] ||
+    lead?.city?.match(PLACE_RE)?.[0] ||
+    crmBlob.match(PLACE_RE)?.[0];
   if (leadPlace) locationHint = leadPlace;
+  else if (lead?.location?.trim()) locationHint = lead.location.trim();
+  else if (lead?.city?.trim()) locationHint = lead.city.trim();
 
   for (const msg of messages) {
     if (msg.role !== "user") continue;
@@ -76,6 +137,8 @@ export function inferQualifyContext(
     }
   }
 
+  const email = resolveParentEmail(messages, lead);
+
   // Also trust assistant affirmations like "8 is a perfect fit"
   if (age == null) {
     for (const msg of messages) {
@@ -103,6 +166,7 @@ export function inferQualifyContext(
     locationHint,
     name: lead?.name?.trim() || undefined,
     childName: lead?.childName?.trim() || undefined,
+    email,
   };
 }
 
@@ -147,15 +211,15 @@ export function membershipCostReply(ctx: QualifyContext): string {
   }
 
   if (!ctx.locationKnown) {
-    return `Before packages — where are you located / can you get to our Kirkland academy about once or twice a week?`;
+    return `Before packages — where are you located? That helps me check Kirkland vs a closer Steamoji if there is one.`;
   }
 
   if (ageOk) {
     const article = ctx.age === 8 || ctx.age === 11 || ctx.age === 18 ? "an" : "a";
-    return `With ${article} ${ctx.age}-year-old near Kirkland, you're a strong fit. We skip membership dollars up front — happy to clear any questions first. What would you like to know?`;
+    return `With ${article} ${ctx.age}-year-old near Kirkland, you're a strong fit. We skip membership dollars up front — happy to walk through whatever you'd like to know.`;
   }
 
-  return `Once we know you're a fit, we can talk packages — what questions can I clear up for you?`;
+  return `Once we know you're a fit, we can talk packages — happy to walk through whatever you'd like to know.`;
 }
 
 /** Answer "what do you know about me?" / "how old is my child?" from remembered context. */

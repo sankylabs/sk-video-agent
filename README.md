@@ -43,14 +43,14 @@ curl -X POST https://YOUR_DOMAIN/api/webhooks/lead-interested \
 
 Response includes `chatUrl` and SMS status. Wire this into Zapier/Make/HubSpot instead of (or in addition to) the email step.
 
-### Option B — Manual from the homepage
+### Option B — Manual from `/send`
 
-Use **Send Maya to a lead** → **Text Maya now** (needs Twilio env vars).
+Open `/send` → **Text Maya now** (needs Twilio env vars).
 
 ### Required env for auto-text
 
 ```bash
-PUBLIC_APP_URL=https://your-deployed-domain.com
+PUBLIC_APP_URL=https://www.steamojikirkland.com
 TWILIO_ACCOUNT_SID=...
 TWILIO_AUTH_TOKEN=...
 TWILIO_FROM_NUMBER=+1...
@@ -58,7 +58,11 @@ LEAD_WEBHOOK_SECRET=some-long-random-string
 TAVUS_API_KEY=...
 ```
 
-Deploy the app (Vercel etc.) first so SMS links are public, not localhost.
+Chat links:
+
+`https://www.steamojikirkland.com/chat/{leadId}`
+
+The Railway URL (`https://maya-production-6815.up.railway.app`) still works as a backup. Leave `kirkland.steamoji.com` on GHL as-is (academy site / booking).
 
 ## Free-session schedule
 

@@ -7,8 +7,13 @@ import {
   ghlIsoToLocalStart,
   isGhlCalendarEnabled,
   upsertGhlContact,
+  cancelGhlAppointment,
 } from "./ghl";
+import { isValidParentEmail } from "./qualify";
 import { buildTrialSubject } from "./trial-subject";
+
+export const EMAIL_REQUIRED_BOOKING_ERROR =
+  "A parent email is required to book this free session. Please share your email so we can send the calendar invite.";
 
 export type DayHours = { open: string; close: string } | null;
 
@@ -111,6 +116,8 @@ export type BookingRecord = {
   leadId?: string;
   ghlContactId?: string;
   ghlAppointmentId?: string;
+  /** Cancel this GHL appointment after a successful new book (reschedule). */
+  previousAppointmentId?: string;
   source?: "ghl" | "local";
   createdAt: string;
 };
@@ -145,6 +152,33 @@ async function persistLocalBooking(booking: BookingRecord) {
   await fs.writeFile(bookingsFile, JSON.stringify(existing, null, 2), "utf8");
 }
 
+async function readAllBookings(): Promise<BookingRecord[]> {
+  try {
+    return JSON.parse(await fs.readFile(bookingsFile, "utf8")) as BookingRecord[];
+  } catch {
+    return [];
+  }
+}
+
+export async function latestBookingForLead(
+  leadId: string,
+  extraIds: string[] = [],
+): Promise<BookingRecord | null> {
+  const ids = new Set(
+    [leadId, ...extraIds].map((s) => s.trim()).filter(Boolean),
+  );
+  const all = (await readAllBookings()).filter(
+    (b) => (b.leadId && ids.has(b.leadId)) || (b.ghlContactId && ids.has(b.ghlContactId)),
+  );
+  if (!all.length) return null;
+  all.sort((a, b) => {
+    const byStart = (b.start || "").localeCompare(a.start || "");
+    if (byStart) return byStart;
+    return (b.createdAt || "").localeCompare(a.createdAt || "");
+  });
+  return all[0] ?? null;
+}
+
 export async function bookSlot(
   start: string,
   meta?: Omit<BookingRecord, "start" | "createdAt">,
@@ -159,16 +193,24 @@ export async function bookSlot(
     };
   }
 
+  const email = meta?.email?.trim();
+  if (!isValidParentEmail(email)) {
+    return {
+      ok: false,
+      error: EMAIL_REQUIRED_BOOKING_ERROR,
+    };
+  }
+
   if (isGhlCalendarEnabled()) {
     try {
-      let contactId = meta?.ghlContactId;
+      const upserted = await upsertGhlContact({
+        name: meta?.name,
+        email,
+        phone: meta?.phone,
+      });
+      const contactId = upserted.contactId || meta?.ghlContactId;
       if (!contactId) {
-        const upserted = await upsertGhlContact({
-          name: meta?.name,
-          email: meta?.email,
-          phone: meta?.phone,
-        });
-        contactId = upserted.contactId;
+        return { ok: false, error: "GHL did not return a contact id" };
       }
 
       const title = buildTrialSubject(meta || {});
@@ -201,12 +243,23 @@ export async function bookSlot(
         start: normalized,
         label: match.label,
         ...meta,
+        email,
         ghlContactId: contactId,
         ghlAppointmentId: appt.appointmentId,
         source: "ghl",
         createdAt: new Date().toISOString(),
       };
       await persistLocalBooking(booking);
+      if (
+        meta?.previousAppointmentId &&
+        meta.previousAppointmentId !== appt.appointmentId
+      ) {
+        try {
+          await cancelGhlAppointment(meta.previousAppointmentId);
+        } catch (cancelErr) {
+          console.error("[schedule] GHL cancel previous failed", cancelErr);
+        }
+      }
       return { ok: true, booking };
     } catch (err) {
       const message = err instanceof Error ? err.message : "GHL booking failed";
@@ -225,6 +278,7 @@ export async function bookSlot(
     start: normalized,
     label: match.label,
     ...meta,
+    email,
     source: "local",
     createdAt: new Date().toISOString(),
   };
@@ -698,7 +752,8 @@ export async function buildAvailabilityBrief(daysAhead = 10) {
   const lines: string[] = [
     `Timezone: America/Los_Angeles. Free sessions are ~30-minute visits. Source: ${source}.`,
     "When a parent asks about upcoming days, offer 2–4 open options from this list only.",
-    "If they confirm a slot, book with [BOOK:YYYY-MM-DDTHH:mm] using the id in parentheses.",
+    "Parent email is required before booking — if missing, ask for it before [BOOK:…].",
+    "If they confirm a slot and email is known, book with [BOOK:YYYY-MM-DDTHH:mm] using the id in parentheses.",
     "If their time is taken, offer the nearest open alternatives. Never invent slots.",
     "Do not volunteer open slots unless they ask about times/availability or clearly want to book.",
     "",

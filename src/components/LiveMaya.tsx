@@ -1,11 +1,16 @@
 "use client";
 
+import DailyIframe, {
+  type DailyCall,
+  type DailyEventObjectFatalError,
+  type DailyEventObjectTrack,
+} from "@daily-co/daily-js";
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { siteConfig, trialUrl } from "@/lib/config";
 import { mayaGreeting } from "@/lib/greeting";
 
-type Phase = "lobby" | "setup" | "connecting" | "live" | "rehearsal" | "error";
+type Phase = "lobby" | "connecting" | "live" | "rehearsal" | "error";
 type Msg = { role: "user" | "assistant"; content: string };
 
 type LeadInfo = {
@@ -15,28 +20,114 @@ type LeadInfo = {
   childName?: string;
   childAge?: string;
   notes?: string;
+  bookedStart?: string;
+  bookedLabel?: string;
 };
 
 type Props = {
   lead?: LeadInfo | null;
   embedded?: boolean;
+  initialMessages?: Msg[];
 };
 
-export function LiveMaya({ lead, embedded = false }: Props) {
+const JOIN_TIMEOUT_MS = 45_000;
+
+export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const [phase, setPhase] = useState<Phase>("lobby");
   const [videoReady, setVideoReady] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState("");
-  const [setupBusy, setSetupBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [messages, setMessages] = useState<Msg[]>(() =>
+    initialMessages?.length
+      ? initialMessages
+      : [
+          {
+            role: "assistant",
+            content: mayaGreeting({
+              name: lead?.name,
+              childName: lead?.childName,
+              childAge: lead?.childAge,
+            }),
+          },
+        ],
+  );
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const callRef = useRef<DailyCall | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
+  const joiningRef = useRef(false);
+  const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phaseRef = useRef<Phase>("lobby");
   const bookUrl = useMemo(() => trialUrl(lead?.id), [lead?.id]);
 
+  // Stable Daily listeners so leave/destroy can off() the same function refs.
+  const dailyHandlersRef = useRef<{
+    onLeftMeeting: () => void;
+    onCallError: (ev: DailyEventObjectFatalError) => void;
+    onJoinedMeeting: () => void;
+    onTrackStarted: (ev: DailyEventObjectTrack) => void;
+  }>({
+    onLeftMeeting: () => undefined,
+    onCallError: () => undefined,
+    onJoinedMeeting: () => undefined,
+    onTrackStarted: () => undefined,
+  });
+
+  const stableLeftMeeting = useRef(() => {
+    dailyHandlersRef.current.onLeftMeeting();
+  }).current;
+  const stableCallError = useRef((ev: DailyEventObjectFatalError) => {
+    dailyHandlersRef.current.onCallError(ev);
+  }).current;
+  const stableJoinedMeeting = useRef(() => {
+    dailyHandlersRef.current.onJoinedMeeting();
+  }).current;
+  const stableTrackStarted = useRef((ev: DailyEventObjectTrack) => {
+    dailyHandlersRef.current.onTrackStarted(ev);
+  }).current;
+
+  function setActiveConversation(id: string | null) {
+    conversationIdRef.current = id;
+    setConversationId(id);
+  }
+
+  function clearJoinTimeout() {
+    if (joinTimeoutRef.current) {
+      clearTimeout(joinTimeoutRef.current);
+      joinTimeoutRef.current = null;
+    }
+  }
+
+  function clearMediaElements() {
+    for (const el of [remoteVideoRef.current, remoteAudioRef.current]) {
+      if (el) el.srcObject = null;
+    }
+  }
+
+  function attachTrack(ev: DailyEventObjectTrack) {
+    const { participant, track, type } = ev;
+    if (!participant || !track || participant.local) return;
+
+    if (type === "video" && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = new MediaStream([track]);
+    }
+    if (type === "audio" && remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = new MediaStream([track]);
+    }
+  }
+
   useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  useEffect(() => {
+    if (initialMessages?.length) {
+      setMessages(initialMessages);
+      return;
+    }
     setMessages([
       {
         role: "assistant",
@@ -47,7 +138,9 @@ export function LiveMaya({ lead, embedded = false }: Props) {
         }),
       },
     ]);
-  }, [lead?.name, lead?.childName, lead?.childAge]);
+    // Hydrate once per chat URL; transcript is owned by this lead after that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead?.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -67,39 +160,94 @@ export function LiveMaya({ lead, embedded = false }: Props) {
     void refreshStatus();
   }, []);
 
-  async function saveTavusKey(e?: FormEvent) {
-    e?.preventDefault();
-    setSetupBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/setup/tavus", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(
-          [data.error, data.hint].filter(Boolean).join(" — ") ||
-            "Could not save Tavus key",
-        );
-        return;
-      }
-      setVideoReady(true);
-      if (data.warning) setError(data.warning);
-      await joinCall();
-    } catch {
-      setError("Could not reach setup API");
-    } finally {
-      setSetupBusy(false);
+  async function destroyCall() {
+    clearJoinTimeout();
+    const call = callRef.current;
+    callRef.current = null;
+    if (!call) {
+      clearMediaElements();
+      return;
     }
+    try {
+      call.off("left-meeting", stableLeftMeeting);
+      call.off("joined-meeting", stableJoinedMeeting);
+      call.off("error", stableCallError);
+      call.off("track-started", stableTrackStarted);
+      await call.leave().catch(() => undefined);
+      await call.destroy().catch(() => undefined);
+    } catch {
+      /* ignore cleanup errors */
+    }
+    clearMediaElements();
   }
 
+  dailyHandlersRef.current.onLeftMeeting = () => {
+    void (async () => {
+      const id = conversationIdRef.current;
+      await destroyCall();
+      if (id) {
+        await fetch(
+          `/api/conversation?conversationId=${encodeURIComponent(id)}`,
+          { method: "DELETE" },
+        ).catch(() => undefined);
+      }
+      setActiveConversation(null);
+      setPhase((p) => (p === "live" || p === "connecting" ? "lobby" : p));
+    })();
+  };
+
+  dailyHandlersRef.current.onCallError = (ev) => {
+    clearJoinTimeout();
+    setError(
+      ev.errorMsg ||
+        "We couldn’t start the video chat. Please try again, message Maya, or book a free session.",
+    );
+    setPhase("error");
+    void destroyCall();
+  };
+
+  dailyHandlersRef.current.onJoinedMeeting = () => {
+    clearJoinTimeout();
+    setPhase("live");
+    setVideoReady(true);
+  };
+
+  dailyHandlersRef.current.onTrackStarted = attachTrack;
+
   async function joinCall() {
+    if (joiningRef.current) return;
+    joiningRef.current = true;
     setError(null);
     setPhase("connecting");
 
     try {
+      await destroyCall();
+
+      joinTimeoutRef.current = setTimeout(() => {
+        if (phaseRef.current !== "connecting") return;
+        void (async () => {
+          await destroyCall();
+          setPhase("error");
+          setError(
+            "Video chat is taking too long to connect. Please try again, message Maya, or book a free session.",
+          );
+          joiningRef.current = false;
+        })();
+      }, JOIN_TIMEOUT_MS);
+
+      // Headless Daily call object — no Prebuilt lobby / second Join button.
+      // Tavus CVI rooms often leave enable_prejoin_ui on; createFrame would
+      // hang in that lobby while our host stayed hidden (pointer-events: none).
+      const call = DailyIframe.createCallObject({
+        audioSource: true,
+        videoSource: false,
+      });
+      callRef.current = call;
+      call.on("left-meeting", stableLeftMeeting);
+      call.on("joined-meeting", stableJoinedMeeting);
+      call.on("error", stableCallError);
+      call.on("track-started", stableTrackStarted);
+
       const res = await fetch("/api/conversation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -107,62 +255,115 @@ export function LiveMaya({ lead, embedded = false }: Props) {
       });
       const data = await res.json();
 
-      if (res.status === 503 || data.needsSetup) {
-        setPhase("setup");
-        setError(
-          data.hint ||
-            "Living video requires a Tavus API key for human-like speech and motion.",
-        );
-        return;
-      }
-
-      if (!res.ok || !data.conversationUrl) {
+      if (
+        res.status === 503 ||
+        data.needsSetup ||
+        !res.ok ||
+        !data.conversationUrl
+      ) {
+        await destroyCall();
         setPhase("error");
         setError(
           data.hint ||
             data.error ||
-            "Could not start Maya’s living video. Check your Tavus account/credits.",
+            "Maya’s video chat isn’t available right now. You can message her instead, or book a free session.",
         );
+        setVideoReady(false);
         return;
       }
 
-      setConversationId(data.conversationId || null);
-      setVideoUrl(data.conversationUrl);
+      // If a newer join started or we cleaned up, don't join on a stale call.
+      if (callRef.current !== call) return;
+
+      setActiveConversation(data.conversationId || null);
+      await call.join({
+        url: data.conversationUrl as string,
+        userName: lead?.name || "Parent",
+        startVideoOff: true,
+      });
+      call.setLocalVideo(false);
+
+      if (callRef.current !== call) return;
+
+      clearJoinTimeout();
       setPhase("live");
-    } catch {
+      setVideoReady(true);
+
+      // Attach any tracks that started before our listener (or during join).
+      const participants = call.participants();
+      for (const [id, participant] of Object.entries(participants)) {
+        if (id === "local") continue;
+        const videoTrack = participant.tracks?.video?.persistentTrack;
+        const audioTrack = participant.tracks?.audio?.persistentTrack;
+        if (
+          videoTrack &&
+          participant.tracks?.video?.state === "playable" &&
+          remoteVideoRef.current
+        ) {
+          remoteVideoRef.current.srcObject = new MediaStream([videoTrack]);
+        }
+        if (
+          audioTrack &&
+          participant.tracks?.audio?.state === "playable" &&
+          remoteAudioRef.current
+        ) {
+          remoteAudioRef.current.srcObject = new MediaStream([audioTrack]);
+        }
+      }
+    } catch (err) {
+      await destroyCall();
       setPhase("error");
-      setError("Network error starting the living video call.");
+      const detail =
+        err instanceof Error && err.message.trim() ? err.message.trim() : null;
+      setError(
+        detail ||
+          "We couldn’t start the video chat. Please try again, message Maya, or book a free session.",
+      );
+    } finally {
+      joiningRef.current = false;
     }
   }
 
   function startRehearsal() {
+    void destroyCall();
     setError(null);
-    setVideoUrl(null);
-    setConversationId(null);
-    setMessages([
-      {
-        role: "assistant",
-        content: mayaGreeting({
-          name: lead?.name,
-          childName: lead?.childName,
-          childAge: lead?.childAge,
-        }),
-      },
-    ]);
+    setActiveConversation(null);
+    setMessages((prev) =>
+      prev.length
+        ? prev
+        : [
+            {
+              role: "assistant",
+              content: mayaGreeting({
+                name: lead?.name,
+                childName: lead?.childName,
+                childAge: lead?.childAge,
+              }),
+            },
+          ],
+    );
     setPhase("rehearsal");
   }
 
   async function leaveCall() {
-    if (conversationId) {
+    const id = conversationIdRef.current;
+    await destroyCall();
+    if (id) {
       await fetch(
-        `/api/conversation?conversationId=${encodeURIComponent(conversationId)}`,
+        `/api/conversation?conversationId=${encodeURIComponent(id)}`,
         { method: "DELETE" },
       ).catch(() => undefined);
     }
-    setConversationId(null);
-    setVideoUrl(null);
+    setActiveConversation(null);
     setPhase("lobby");
   }
+
+  useEffect(() => {
+    return () => {
+      void destroyCall();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount-only cleanup
+  }, []);
 
   async function sendMessage(text: string) {
     const content = text.trim();
@@ -203,29 +404,44 @@ export function LiveMaya({ lead, embedded = false }: Props) {
     void sendMessage(input);
   }
 
+  const statusLine =
+    phase === "live"
+      ? "You’re live with Maya"
+      : phase === "rehearsal"
+        ? "Text chat with Maya"
+        : phase === "connecting"
+          ? "Connecting…"
+          : phase === "error"
+            ? "Video unavailable"
+            : `${siteConfig.personaTitle} · ${siteConfig.brand}`;
+
+  const showAvatar = phase !== "live";
+
   return (
     <div className={`live-maya ${embedded ? "is-embedded" : ""} ${phase}`}>
       <header className="maya-brand">
         <div className="maya-brand-top">
-          <Image
-            src="/steamoji-kirkland-logo.png"
-            alt="Steamoji Kirkland"
-            width={88}
-            height={88}
-            priority
-            className="maya-brand-logo"
-          />
+          <div className="maya-brand-lockup">
+            <Image
+              src="/steamoji-kirkland-logo.png"
+              alt=""
+              width={88}
+              height={88}
+              priority
+              className="maya-brand-logo"
+            />
+            <h1 className="maya-brand-name">{siteConfig.brand}</h1>
+          </div>
           <div className="maya-brand-copy">
-            <p className="maya-brand-mission">{siteConfig.mission}</p>
+            <p className="maya-brand-mission">
+              <span className="maya-brand-mission-label">Our Mission:</span>{" "}
+              {siteConfig.mission}
+            </p>
             <p className="maya-brand-location">
               <span>Kirkland</span>
               {siteConfig.address}
             </p>
           </div>
-        </div>
-        <div className="maya-brand-title">
-          <p className="eyebrow">Talk with {siteConfig.personaName}</p>
-          <h1>{siteConfig.personaTitle}</h1>
         </div>
       </header>
 
@@ -233,28 +449,23 @@ export function LiveMaya({ lead, embedded = false }: Props) {
         <div className="live-badge">
           <span className="pulse" />
           {phase === "live"
-            ? "LIVE VIDEO"
+            ? "LIVE"
             : phase === "rehearsal"
-              ? "SCRIPT REHEARSAL · FREE"
-              : "LIVE ON THIS PAGE"}
+              ? "CHAT"
+              : phase === "connecting"
+                ? "CONNECTING"
+                : "MAYA"}
         </div>
 
         <div
-          className={`presence ${phase === "live" ? "is-live" : ""} ${phase === "rehearsal" ? "is-rehearsal" : ""}`}
+          className={`presence ${phase === "live" ? "is-live" : ""} ${phase === "rehearsal" ? "is-rehearsal" : ""} ${phase === "connecting" ? "is-connecting" : ""}`}
         >
-          {phase === "live" && videoUrl ? (
-            <iframe
-              title="Maya living video conversation"
-              src={videoUrl}
-              allow="camera; microphone; fullscreen; display-capture; autoplay"
-              className="tavus-frame"
-            />
-          ) : (
+          {showAvatar ? (
             <>
               <div className="presence-glow" />
               <div className="presence-ring" />
               <Image
-                src="/maya-avatar.jpg"
+                src="/maya-r5dc7c7d0bcb.jpg"
                 alt={`${siteConfig.personaName} — ${siteConfig.personaTitle}`}
                 width={960}
                 height={960}
@@ -262,7 +473,19 @@ export function LiveMaya({ lead, embedded = false }: Props) {
                 className="presence-face"
               />
             </>
-          )}
+          ) : null}
+          <div
+            className={`daily-host ${phase === "live" ? "is-active" : ""}`}
+            aria-hidden={phase !== "live"}
+          >
+            <video
+              ref={remoteVideoRef}
+              className="maya-remote-video"
+              autoPlay
+              playsInline
+            />
+            <audio ref={remoteAudioRef} autoPlay playsInline />
+          </div>
         </div>
 
         <div className="live-overlay">
@@ -271,115 +494,88 @@ export function LiveMaya({ lead, embedded = false }: Props) {
               {siteConfig.personaName}
               <em> · {siteConfig.personaTitle}</em>
             </strong>
-            <span>
-              {phase === "live"
-                ? "Photoreal talking avatar"
-                : phase === "rehearsal"
-                  ? "Free script rehearsal (no Tavus minutes)"
-                  : phase === "connecting"
-                    ? "Starting living video…"
-                    : videoReady
-                      ? "Ready for living video"
-                      : "Needs living video setup"}
-            </span>
+            <span>{statusLine}</span>
           </div>
 
           {phase === "lobby" ? (
             <div className="lobby-copy">
-              <h2>Ask {siteConfig.personaName}.</h2>
+              <h2>Meet {siteConfig.personaName}</h2>
               <p>
-                Living video uses Tavus minutes. Out of minutes? Rehearse the
-                sales script for free, then turn video back on when credits
-                refresh.
+                Ask about programs, schedules, and free trials for your child —
+                talk with our Steamoji Kirkland AI enrollment advisor.
               </p>
               <div className="lobby-actions">
                 <button
                   type="button"
                   className="join-btn"
-                  onClick={() => {
-                    if (videoReady) void joinCall();
-                    else setPhase("setup");
-                  }}
+                  onClick={() => void joinCall()}
                 >
-                  {videoReady ? "Start living video" : "Enable living video"}
+                  Talk with {siteConfig.personaName}
                 </button>
+                <span className="lobby-or">OR</span>
                 <button
                   type="button"
                   className="dock-btn"
                   onClick={startRehearsal}
                 >
-                  Script rehearsal (free)
+                  Chat with {siteConfig.personaName}
                 </button>
               </div>
               <p className="lobby-note">
-                Tavus test_mode only checks the API — the avatar does not join.
-                Rehearsal uses Maya’s real sales brain without CVI minutes.
+                Allow microphone when prompted so Maya can hear you. You don’t
+                need a camera — you’ll see and hear her.
               </p>
-            </div>
-          ) : null}
-
-          {phase === "setup" ? (
-            <div className="lobby-copy setup-copy">
-              <h2>Enable living Maya</h2>
-              <p>
-                Paste a Tavus API key for photoreal video. Or skip and use free
-                script rehearsal while you wait for more minutes.
-              </p>
-              <form className="setup-form" onSubmit={(e) => void saveTavusKey(e)}>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Paste full Tavus API key"
-                  autoComplete="off"
-                  required
-                />
-                <button type="submit" className="join-btn" disabled={setupBusy}>
-                  {setupBusy ? "Connecting…" : "Save & start video"}
-                </button>
-              </form>
-              <div className="lobby-actions">
-                <button
-                  type="button"
-                  className="dock-btn"
-                  onClick={startRehearsal}
-                >
-                  Script rehearsal instead
-                </button>
-                <button
-                  type="button"
-                  className="dock-btn"
-                  onClick={() => setPhase("lobby")}
-                >
-                  Back
-                </button>
-              </div>
             </div>
           ) : null}
 
           {phase === "connecting" ? (
             <div className="lobby-copy">
-              <h2>Bringing Maya into the room…</h2>
-              <p>Loading photoreal face and conversation brain.</p>
+              <h2>Connecting you with {siteConfig.personaName}…</h2>
+              <p>Just a moment — Maya will appear automatically.</p>
             </div>
           ) : null}
 
           {phase === "error" ? (
             <div className="lobby-copy">
-              <h2>Couldn’t start living video</h2>
-              <p>{error}</p>
+              <h2>Video chat isn’t available</h2>
+              <p>
+                {error ||
+                  "Please try again in a moment, message Maya, or book a free session online."}
+              </p>
               <div className="lobby-actions">
-                <button type="button" className="join-btn" onClick={startRehearsal}>
-                  Continue in script rehearsal
+                <button
+                  type="button"
+                  className="join-btn"
+                  onClick={() => void joinCall()}
+                >
+                  Try video again
                 </button>
                 <button
                   type="button"
                   className="dock-btn"
-                  onClick={() => setPhase("setup")}
+                  onClick={startRehearsal}
                 >
-                  Tavus settings
+                  Message Maya
                 </button>
+                <a
+                  className="dock-btn"
+                  href={bookUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Book free session
+                </a>
               </div>
+              <button
+                type="button"
+                className="dock-btn"
+                onClick={() => {
+                  setError(null);
+                  setPhase("lobby");
+                }}
+              >
+                Back
+              </button>
             </div>
           ) : null}
         </div>
@@ -398,15 +594,6 @@ export function LiveMaya({ lead, embedded = false }: Props) {
             Leave
           </button>
         ) : null}
-        {phase === "lobby" && videoReady ? (
-          <button
-            type="button"
-            className="dock-btn"
-            onClick={() => setPhase("setup")}
-          >
-            API settings
-          </button>
-        ) : null}
       </div>
 
       {error && phase !== "error" ? <p className="banner warn">{error}</p> : null}
@@ -414,9 +601,9 @@ export function LiveMaya({ lead, embedded = false }: Props) {
       {phase === "rehearsal" ? (
         <>
           <p className="living-note">
-            Free rehearsal — same sales script, objections, and schedule logic.
-            No Tavus minutes used. Add OpenAI key in `.env.local` for smarter
-            replies; otherwise built-in demo replies are used.
+            Chat with {siteConfig.personaName} about Steamoji Kirkland — programs,
+            schedules, and free trials. Prefer video? Leave and choose{" "}
+            <strong>Talk with {siteConfig.personaName}</strong>.
           </p>
           <section className="transcript-panel rehearsal-chat">
             {messages.map((m, i) => (
@@ -439,8 +626,8 @@ export function LiveMaya({ lead, embedded = false }: Props) {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about memberships, schedule, objections…"
-              aria-label="Message Maya"
+              placeholder="Ask about programs, schedule, free trials…"
+              aria-label={`Message ${siteConfig.personaName}`}
               disabled={busy}
             />
             <button type="submit" disabled={busy || !input.trim()}>
@@ -449,9 +636,9 @@ export function LiveMaya({ lead, embedded = false }: Props) {
           </form>
           <div className="starter-chips">
             {[
-              "Walk me through how Steamoji works",
-              "What does membership cost?",
-              "Any free session times this Saturday?",
+              "How does Steamoji work?",
+              "What ages do you serve?",
+              "Any free session times this week?",
             ].map((chip) => (
               <button
                 key={chip}
@@ -464,14 +651,6 @@ export function LiveMaya({ lead, embedded = false }: Props) {
             ))}
           </div>
         </>
-      ) : null}
-
-      {phase === "lobby" ? (
-        <p className="living-note">
-          Out of Tavus conversational minutes? Use <strong>Script rehearsal</strong>{" "}
-          to keep polishing the pitch. Living video needs available CVI minutes
-          on your Tavus plan.
-        </p>
       ) : null}
     </div>
   );
