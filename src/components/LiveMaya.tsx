@@ -2,11 +2,21 @@
 
 import DailyIframe, {
   type DailyCall,
+  type DailyEventObjectAppMessage,
   type DailyEventObjectFatalError,
+  type DailyEventObjectLocalAudioLevel,
   type DailyEventObjectTrack,
 } from "@daily-co/daily-js";
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CALL_END_AFTER_WRAP_MS,
+  CALL_NUDGE_AT_MS,
+  CALL_NUDGE_LINE,
+  CALL_WRAP_AFTER_NUDGE_MS,
+  CALL_WRAP_LINE,
+  isParentStartedSpeaking,
+} from "@/lib/call-timeout";
 import { siteConfig, trialUrl } from "@/lib/config";
 import { mayaGreeting } from "@/lib/greeting";
 
@@ -31,6 +41,9 @@ type Props = {
 };
 
 const JOIN_TIMEOUT_MS = 45_000;
+const PARENT_AUDIO_LEVEL_THRESHOLD = 0.12;
+const PARENT_AUDIO_STREAK_NEEDED = 3;
+const PARENT_STILL_TALKING_MS = 2_500;
 
 export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const [phase, setPhase] = useState<Phase>("lobby");
@@ -61,6 +74,16 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const joiningRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phaseRef = useRef<Phase>("lobby");
+  const callWatchStartedRef = useRef(false);
+  const lastParentSpeechAtRef = useRef(0);
+  const parentAudioStreakRef = useRef(0);
+  const heardAfterNudgeRef = useRef(false);
+  const callTimerRefs = useRef<{
+    nudge: ReturnType<typeof setTimeout> | null;
+    wrap: ReturnType<typeof setTimeout> | null;
+    end: ReturnType<typeof setTimeout> | null;
+    echo: ReturnType<typeof setTimeout> | null;
+  }>({ nudge: null, wrap: null, end: null, echo: null });
   const bookUrl = useMemo(() => trialUrl(lead?.id), [lead?.id]);
 
   // Stable Daily listeners so leave/destroy can off() the same function refs.
@@ -69,11 +92,15 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     onCallError: (ev: DailyEventObjectFatalError) => void;
     onJoinedMeeting: () => void;
     onTrackStarted: (ev: DailyEventObjectTrack) => void;
+    onAppMessage: (ev: DailyEventObjectAppMessage) => void;
+    onLocalAudioLevel: (ev: DailyEventObjectLocalAudioLevel) => void;
   }>({
     onLeftMeeting: () => undefined,
     onCallError: () => undefined,
     onJoinedMeeting: () => undefined,
     onTrackStarted: () => undefined,
+    onAppMessage: () => undefined,
+    onLocalAudioLevel: () => undefined,
   });
 
   const stableLeftMeeting = useRef(() => {
@@ -88,6 +115,14 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const stableTrackStarted = useRef((ev: DailyEventObjectTrack) => {
     dailyHandlersRef.current.onTrackStarted(ev);
   }).current;
+  const stableAppMessage = useRef((ev: DailyEventObjectAppMessage) => {
+    dailyHandlersRef.current.onAppMessage(ev);
+  }).current;
+  const stableLocalAudioLevel = useRef(
+    (ev: DailyEventObjectLocalAudioLevel) => {
+      dailyHandlersRef.current.onLocalAudioLevel(ev);
+    },
+  ).current;
 
   function setActiveConversation(id: string | null) {
     conversationIdRef.current = id;
@@ -99,6 +134,125 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       clearTimeout(joinTimeoutRef.current);
       joinTimeoutRef.current = null;
     }
+  }
+
+  function clearCallTimers() {
+    const timers = callTimerRefs.current;
+    for (const key of ["nudge", "wrap", "end", "echo"] as const) {
+      if (timers[key]) {
+        clearTimeout(timers[key]);
+        timers[key] = null;
+      }
+    }
+  }
+
+  function clearCallWatch() {
+    clearCallTimers();
+    callWatchStartedRef.current = false;
+    heardAfterNudgeRef.current = false;
+    parentAudioStreakRef.current = 0;
+    lastParentSpeechAtRef.current = 0;
+  }
+
+  function speakMayaLine(text: string) {
+    const call = callRef.current;
+    const conversationId = conversationIdRef.current;
+    if (!call || !conversationId) return;
+    call.sendAppMessage(
+      {
+        message_type: "conversation",
+        event_type: "conversation.interrupt",
+        conversation_id: conversationId,
+      },
+      "*",
+    );
+    if (callTimerRefs.current.echo) {
+      clearTimeout(callTimerRefs.current.echo);
+    }
+    callTimerRefs.current.echo = setTimeout(() => {
+      callTimerRefs.current.echo = null;
+      if (callRef.current !== call || conversationIdRef.current !== conversationId) {
+        return;
+      }
+      call.sendAppMessage(
+        {
+          message_type: "conversation",
+          event_type: "conversation.echo",
+          conversation_id: conversationId,
+          properties: { modality: "text", text, done: true },
+        },
+        "*",
+      );
+    }, 150);
+  }
+
+  function cancelWrapUp() {
+    heardAfterNudgeRef.current = true;
+    if (callTimerRefs.current.wrap) {
+      clearTimeout(callTimerRefs.current.wrap);
+      callTimerRefs.current.wrap = null;
+    }
+    if (callTimerRefs.current.end) {
+      clearTimeout(callTimerRefs.current.end);
+      callTimerRefs.current.end = null;
+    }
+  }
+
+  function noteParentSpeech() {
+    lastParentSpeechAtRef.current = Date.now();
+    // After the 2-minute check-in has fired (or been skipped), speech keeps the call.
+    if (callWatchStartedRef.current && callTimerRefs.current.nudge === null) {
+      cancelWrapUp();
+    }
+  }
+
+  function startCallWatch() {
+    if (callWatchStartedRef.current) return;
+    callWatchStartedRef.current = true;
+    heardAfterNudgeRef.current = false;
+    lastParentSpeechAtRef.current = 0;
+    callRef.current?.startLocalAudioLevelObserver(200).catch(() => undefined);
+
+    const giveNudge = () => {
+      if (phaseRef.current !== "live" || !callRef.current) return;
+      const recentlyHeard =
+        Date.now() - lastParentSpeechAtRef.current < PARENT_STILL_TALKING_MS;
+      if (recentlyHeard) {
+        heardAfterNudgeRef.current = true;
+        return;
+      }
+      heardAfterNudgeRef.current = false;
+      speakMayaLine(CALL_NUDGE_LINE);
+      callTimerRefs.current.wrap = setTimeout(() => {
+        callTimerRefs.current.wrap = null;
+        if (phaseRef.current !== "live" || heardAfterNudgeRef.current) return;
+        speakMayaLine(CALL_WRAP_LINE);
+        callTimerRefs.current.end = setTimeout(() => {
+          callTimerRefs.current.end = null;
+          if (phaseRef.current !== "live" || heardAfterNudgeRef.current) return;
+          void leaveCall();
+        }, CALL_END_AFTER_WRAP_MS);
+      }, CALL_WRAP_AFTER_NUDGE_MS);
+    };
+
+    const waitForParentPause = (attempt: number) => {
+      if (phaseRef.current !== "live" || !callRef.current) return;
+      const parentIsTalking =
+        Date.now() - lastParentSpeechAtRef.current < PARENT_STILL_TALKING_MS;
+      if (parentIsTalking && attempt < 4) {
+        callTimerRefs.current.nudge = setTimeout(
+          () => waitForParentPause(attempt + 1),
+          2000,
+        );
+        return;
+      }
+      callTimerRefs.current.nudge = null;
+      giveNudge();
+    };
+
+    callTimerRefs.current.nudge = setTimeout(() => {
+      waitForParentPause(0);
+    }, CALL_NUDGE_AT_MS);
   }
 
   function clearMediaElements() {
@@ -162,6 +316,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
 
   async function destroyCall() {
     clearJoinTimeout();
+    clearCallWatch();
     const call = callRef.current;
     callRef.current = null;
     if (!call) {
@@ -173,6 +328,11 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       call.off("joined-meeting", stableJoinedMeeting);
       call.off("error", stableCallError);
       call.off("track-started", stableTrackStarted);
+      call.off("app-message", stableAppMessage);
+      call.off("local-audio-level", stableLocalAudioLevel);
+      if (call.isLocalAudioLevelObserverRunning()) {
+        call.stopLocalAudioLevelObserver();
+      }
       await call.leave().catch(() => undefined);
       await call.destroy().catch(() => undefined);
     } catch {
@@ -210,9 +370,28 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     clearJoinTimeout();
     setPhase("live");
     setVideoReady(true);
+    startCallWatch();
   };
 
   dailyHandlersRef.current.onTrackStarted = attachTrack;
+
+  dailyHandlersRef.current.onAppMessage = (ev) => {
+    if (isParentStartedSpeaking(ev.data)) {
+      noteParentSpeech();
+    }
+  };
+
+  dailyHandlersRef.current.onLocalAudioLevel = (ev) => {
+    if (ev.audioLevel >= PARENT_AUDIO_LEVEL_THRESHOLD) {
+      parentAudioStreakRef.current += 1;
+      if (parentAudioStreakRef.current >= PARENT_AUDIO_STREAK_NEEDED) {
+        parentAudioStreakRef.current = 0;
+        noteParentSpeech();
+      }
+      return;
+    }
+    parentAudioStreakRef.current = 0;
+  };
 
   async function joinCall() {
     if (joiningRef.current) return;
@@ -247,6 +426,8 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       call.on("joined-meeting", stableJoinedMeeting);
       call.on("error", stableCallError);
       call.on("track-started", stableTrackStarted);
+      call.on("app-message", stableAppMessage);
+      call.on("local-audio-level", stableLocalAudioLevel);
 
       const res = await fetch("/api/conversation", {
         method: "POST",
@@ -288,6 +469,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       clearJoinTimeout();
       setPhase("live");
       setVideoReady(true);
+      startCallWatch();
 
       // Attach any tracks that started before our listener (or during join).
       const participants = call.participants();
@@ -465,7 +647,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
               <div className="presence-glow" />
               <div className="presence-ring" />
               <Image
-                src="/maya-r5dc7c7d0bcb.jpg"
+                src="/maya-r9d30b0e55ac.jpg"
                 alt={`${siteConfig.personaName} — ${siteConfig.personaTitle}`}
                 width={960}
                 height={960}

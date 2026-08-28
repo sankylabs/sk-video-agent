@@ -9,14 +9,15 @@ import { getTavusApiKey } from "./runtime-secrets";
 import { buildAvailabilityBrief } from "./schedule";
 import { inferQualifyContext, isTrialQualified, isValidParentEmail, trialQualifyGap } from "./qualify";
 import { locationSessionNote } from "./locations";
+import { tavusMaxCallDurationSec } from "./call-timeout";
 
 /** Default Maya face (Tavus face / replica id). */
-export const STOCK_FEMALE_FACE_ID = "r5dc7c7d0bcb";
+export const STOCK_FEMALE_FACE_ID = "r9d30b0e55ac";
 /** Tavus stock Sales Development Rep PAL — reliable on most accounts. */
 export const STOCK_SALES_PAL_ID = "pcb7a34da5fe";
 
 /** Bump when PAL layers / face / interrupt settings change so we refresh cached PAL. */
-const PAL_CONFIG_VERSION = 22;
+const PAL_CONFIG_VERSION = 23;
 
 type LeadLike = {
   name?: string;
@@ -267,6 +268,9 @@ Stay on Steamoji Kirkland / kids STEM education — if they go off-topic, steer 
       : "Qualify (age 5–14 + where they live) before suggesting a free trial. If they name a city with another Steamoji, mention that academy once and let them choose Kirkland or the closer site."
   } Keep them comfortable; answer what they ask without repeatedly inviting more questions; only then soft-invite trial and offer mixed open times from the availability list (not Saturday-only).
 
+## CALL LENGTH
+Live video lasts at most 3 minutes. Around 2 minutes, a check-in may be spoken for you if they have gone quiet. If they stay silent, a wrap-up will be spoken and the call will end — they can reconnect to continue. If they reply, keep helping until the 3-minute limit. Do not announce the time limit unless they ask.
+
 ## KNOWN QUALIFICATION SO FAR
 - Child age: ${qualify.age != null ? String(qualify.age) : "UNKNOWN"}
 ${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
@@ -289,7 +293,7 @@ ${campsBrief}
     conversational_context: context,
     custom_greeting: greeting,
     properties: {
-      max_call_duration: Number(process.env.TAVUS_MAX_DURATION || 600),
+      max_call_duration: tavusMaxCallDurationSec(),
       participant_left_timeout: 45,
       participant_absent_timeout: 90,
       language: "english",
