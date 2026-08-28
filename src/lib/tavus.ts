@@ -17,7 +17,7 @@ export const STOCK_FEMALE_FACE_ID = "r9d30b0e55ac";
 export const STOCK_SALES_PAL_ID = "pcb7a34da5fe";
 
 /** Bump when PAL layers / face / interrupt settings change so we refresh cached PAL. */
-const PAL_CONFIG_VERSION = 23;
+const PAL_CONFIG_VERSION = 24;
 
 type LeadLike = {
   name?: string;
@@ -55,11 +55,13 @@ type CachedPal = {
 const cacheFile = path.join(process.cwd(), ".data", "tavus-pal.json");
 
 const conversationalFlowLayer = {
-  turn_detection_model: "sparrow-1",
+  /** Sparrow-2 becomes Tavus default on Sept 4, 2026 — opt in now. */
+  turn_detection_model: "sparrow-2",
   turn_taking_patience: "medium",
   /** Stop talking when the parent starts speaking. */
   pal_interruptibility: "high",
   replica_interruptibility: "high",
+  /** Unused by sparrow-2; kept if a fallback PAL still runs sparrow-1. */
   voice_isolation: "near",
   idle_engagement: "eager",
 };
