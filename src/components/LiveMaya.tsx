@@ -19,6 +19,10 @@ import {
 } from "@/lib/call-timeout";
 import { siteConfig, trialUrl } from "@/lib/config";
 import { mayaGreeting } from "@/lib/greeting";
+import {
+  SERVICES_IMAGE_MARKER,
+  SERVICES_IMAGE_SRC,
+} from "@/lib/services";
 
 type Phase = "lobby" | "connecting" | "live" | "rehearsal" | "error";
 type Msg = { role: "user" | "assistant"; content: string };
@@ -39,6 +43,12 @@ type Props = {
   embedded?: boolean;
   initialMessages?: Msg[];
 };
+
+function ChatMessageBody({ content }: { content: string }) {
+  const text = content.replaceAll(SERVICES_IMAGE_MARKER, "").trim();
+  if (!text) return null;
+  return <p>{text}</p>;
+}
 
 const JOIN_TIMEOUT_MS = 45_000;
 const PARENT_AUDIO_LEVEL_THRESHOLD = 0.12;
@@ -787,13 +797,22 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
             schedules, and free trials. Prefer video? Leave and choose{" "}
             <strong>Talk with {siteConfig.personaName}</strong>.
           </p>
+          <figure className="services-card">
+            <Image
+              src={SERVICES_IMAGE_SRC}
+              alt="Steamoji Kirkland services: memberships, camps, VEX Robotics Club, and birthday parties"
+              width={1024}
+              height={682}
+              className="services-card-image"
+            />
+          </figure>
           <section className="transcript-panel rehearsal-chat">
             {messages.map((m, i) => (
               <div key={i} className={`bubble ${m.role}`}>
                 <span>
                   {m.role === "assistant" ? siteConfig.personaName : "You"}
                 </span>
-                <p>{m.content}</p>
+                <ChatMessageBody content={m.content} />
               </div>
             ))}
             {busy ? (
@@ -818,6 +837,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
           </form>
           <div className="starter-chips">
             {[
+              "What services do you offer?",
               "How does Steamoji work?",
               "What ages do you serve?",
               "Any free session times this week?",

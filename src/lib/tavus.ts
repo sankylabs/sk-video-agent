@@ -17,7 +17,7 @@ export const STOCK_FEMALE_FACE_ID = "r9d30b0e55ac";
 export const STOCK_SALES_PAL_ID = "pcb7a34da5fe";
 
 /** Bump when PAL layers / face / interrupt settings change so we refresh cached PAL. */
-const PAL_CONFIG_VERSION = 24;
+const PAL_CONFIG_VERSION = 25;
 
 type LeadLike = {
   name?: string;

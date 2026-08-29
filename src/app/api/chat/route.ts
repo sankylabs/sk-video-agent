@@ -23,6 +23,10 @@ import {
 import { locationSessionNote } from "@/lib/locations";
 import { getOpenAIApiKey } from "@/lib/runtime-secrets";
 import {
+  ensureServicesImageMarker,
+  isServicesQuestion,
+} from "@/lib/services";
+import {
   answerAvailabilityQuestion,
   bookSlot,
   buildAvailabilityBrief,
@@ -236,6 +240,10 @@ If they confirmed a time that matches${
     ) {
       content = calendarLookup.reply;
     }
+  }
+
+  if (isServicesQuestion(userText)) {
+    content = ensureServicesImageMarker(content);
   }
 
   const toBook = extractBookMarkers(content);

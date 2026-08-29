@@ -718,6 +718,21 @@ a {
   line-height: 1.45;
 }
 
+.services-card {
+  margin: 0 0 0.85rem;
+}
+
+.services-card-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
 .section {
   margin-top: 2.5rem;
   padding: 1.5rem;

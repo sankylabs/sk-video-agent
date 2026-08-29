@@ -3,6 +3,10 @@ import { fallbackCampsBrief } from "./camps";
 import { ageAffirmation, parseChildAge } from "./greeting";
 import { demoLocationReply, PLACE_RE } from "./locations";
 import {
+  isServicesQuestion,
+  servicesOverviewReply,
+} from "./services";
+import {
   childAgeRecallReply,
   EMAIL_NEEDED_FOR_BOOKING,
   isChildAgeQuestion,
@@ -17,7 +21,7 @@ const PARENT_AT_TRIAL_REPLY =
   `Yes — a parent or guardian should come to the free trial. While your child enjoys a project, we walk you through the whole program with a tour of the academy.`;
 
 const ON_TOPIC =
-  /\b(steamoji|makerspace|maker|stem|camp|membership|trial|session|tour|academy|kirkland|enroll|booking|book|slot|schedule|hours|tuition|price|cost|robotics|coding|3d|engineering|child|kid|son|daughter|age|email|commute|program)\b/i;
+  /\b(steamoji|makerspace|maker|stem|camp|membership|trial|session|tour|academy|kirkland|enroll|booking|book|slot|schedule|hours|tuition|price|cost|robotics|coding|3d|engineering|child|kid|son|daughter|age|email|commute|program|service|vex|birthday)\b/i;
 
 const OFF_TOPIC =
   /\b(weather|forecast|stock|crypto|bitcoin|election|politic|trump|biden|recipe|cook|homework|math problem|solve this|movie|netflix|sports? score|nfl|nba|mlb|soccer|who won|capital of|tell me a joke|write (a |me )?(poem|essay|code)|medical|diagnos|lawsuit|legal advice)\b/i;
@@ -177,6 +181,10 @@ export function demoReply(
     return `A free trial is about 30 minutes: while your child enjoys an age-appropriate project, we walk you through the whole program with a tour of our academy.`;
   }
 
+  if (isServicesQuestion(userText)) {
+    return servicesOverviewReply;
+  }
+
   if (
     /\b(how (does|do)?\s*steamoji work|how (it|steamoji) works|what is steamoji|what's steamoji|what'?s steamoji about|why steamoji|tell me about steamoji|walk me through how)\b/.test(
       t,
@@ -188,7 +196,7 @@ export function demoReply(
   }
 
   if (/\b(birthday|party|group event|private (party|event))\b/.test(t)) {
-    return `We can talk through birthday or group maker experiences. How old are the kids, roughly how many, and what timing were you thinking?`;
+    return `Birthday parties are Saturdays 4–6pm — fun STEM activities and hands-on projects. How old are the kids, roughly how many, and which Saturday were you thinking?`;
   }
 
   if (
