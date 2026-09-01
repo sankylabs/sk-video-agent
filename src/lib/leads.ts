@@ -40,6 +40,8 @@ export type Lead = {
   bookedStart?: string;
   bookedLabel?: string;
   ghlAppointmentId?: string;
+  /** Last time Maya asked Kirkland staff to reach out to this parent. */
+  staffOutreachAt?: string;
   /** Loaded from Postgres (not written to leads.json). */
   conversation?: LeadMessage[];
   lastOpenedAt?: string;

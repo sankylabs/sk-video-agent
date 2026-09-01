@@ -6,6 +6,8 @@ import {
   isServicesQuestion,
   servicesOverviewReply,
 } from "./services";
+import { isStaffTalkRequest } from "./staff-outreach";
+import { OFFER_REACH_OUT_MARKER } from "./chat-actions";
 import {
   childAgeRecallReply,
   EMAIL_NEEDED_FOR_BOOKING,
@@ -105,6 +107,10 @@ export function demoReply(
 
   if (isOffTopicQuestion(userText)) {
     return steerBackToSteamoji(ctx);
+  }
+
+  if (isStaffTalkRequest(userText)) {
+    return `I can have someone from the Steamoji Kirkland team reach out to you. You can also call us now at ${siteConfig.phone}. ${OFFER_REACH_OUT_MARKER}`;
   }
 
   if (isChildAgeQuestion(userText)) {

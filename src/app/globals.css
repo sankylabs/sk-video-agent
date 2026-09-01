@@ -123,7 +123,6 @@ a {
 
 .ghost-link,
 .dock-btn,
-.starter-chips button,
 .result-actions button,
 .result-actions a {
   border: 1px solid var(--line);
@@ -138,8 +137,7 @@ a {
 }
 
 .ghost-link:hover,
-.dock-btn:hover,
-.starter-chips button:hover {
+.dock-btn:hover {
   transform: translateY(-1px);
   background: rgba(208, 206, 232, 0.45);
   border-color: rgba(47, 51, 134, 0.28);
@@ -558,12 +556,63 @@ a {
   max-width: 62ch;
 }
 
-.rehearsal-chat {
-  max-height: 360px;
+.presence.is-rehearsal .presence-ring {
+  display: none;
 }
 
-.presence.is-rehearsal .presence-ring {
-  border-color: rgba(249, 206, 71, 0.5);
+.presence.is-rehearsal .presence-glow {
+  display: none;
+}
+
+.live-maya.rehearsal .live-frame {
+  min-height: 0;
+  height: auto;
+}
+
+.live-maya.rehearsal .live-badge {
+  display: none;
+}
+
+.live-maya.rehearsal .presence {
+  display: none;
+}
+
+.live-maya.rehearsal .live-overlay {
+  position: relative;
+  inset: auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  background: linear-gradient(
+    180deg,
+    var(--brand-blue-hero) 0%,
+    var(--brand-blue-deep) 100%
+  );
+}
+
+.live-maya.rehearsal .identity {
+  margin: 0;
+  min-width: 0;
+}
+
+.live-maya.rehearsal .chat-end-btn {
+  pointer-events: auto;
+  flex-shrink: 0;
+  color: var(--brand-danger);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(203, 55, 50, 0.4);
+}
+
+.live-maya.rehearsal .chat-end-btn:hover {
+  background: #fff;
+  color: var(--brand-danger);
+  border-color: rgba(203, 55, 50, 0.55);
+}
+
+.rehearsal-chat {
+  max-height: min(52vh, 480px);
 }
 
 .lobby-copy p {
@@ -682,6 +731,69 @@ a {
   gap: 0.45rem;
 }
 
+.live-maya .starter-chips button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.7rem 1.05rem;
+  background: var(--brand-blue);
+  color: var(--brand-white);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.live-maya .starter-chips button:hover {
+  background: var(--brand-blue-deep);
+  color: var(--brand-white);
+  transform: translateY(-1px);
+}
+
+.live-maya .starter-chips button:disabled {
+  opacity: 0.55;
+  transform: none;
+  cursor: not-allowed;
+}
+
+.slot-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.slot-chips button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  background: var(--brand-blue);
+  color: var(--brand-white);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.slot-chips button:hover:not(:disabled) {
+  background: var(--brand-blue-deep);
+  transform: translateY(-1px);
+}
+
+.slot-chips button:disabled {
+  opacity: 0.45;
+  transform: none;
+  cursor: not-allowed;
+}
+
+.slot-chips button.slot-more {
+  background: var(--brand-white);
+  color: var(--brand-blue);
+  border: 1.5px solid var(--brand-blue);
+}
+
+.slot-chips button.slot-more:hover:not(:disabled) {
+  background: var(--brand-blue);
+  color: var(--brand-white);
+}
+
 .transcript-panel {
   display: grid;
   gap: 0.65rem;
@@ -696,6 +808,28 @@ a {
   padding: 0.8rem 0.95rem;
   background: rgba(255, 255, 255, 0.82);
   animation: rise 0.35s ease both;
+}
+
+.bubble.assistant {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.bubble-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  object-fit: cover;
+  object-position: center 18%;
+  flex-shrink: 0;
+  border: 1px solid rgba(47, 51, 134, 0.16);
+  background: #fff;
+}
+
+.bubble-body {
+  min-width: 0;
+  flex: 1;
 }
 
 .bubble.user {
@@ -718,16 +852,13 @@ a {
   line-height: 1.45;
 }
 
-.services-card {
-  margin: 0 0 0.85rem;
-}
-
-.services-card-image {
+.bubble-body .services-card-image {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 320px;
+  max-height: 280px;
   object-fit: contain;
+  margin-top: 0.7rem;
   border-radius: 0.75rem;
   border: 1px solid var(--line);
   background: #fff;
@@ -1041,6 +1172,67 @@ a {
   padding: 1rem 0 2rem;
 }
 
+.showcase-videos {
+  margin-top: 2rem;
+  padding: 1.35rem 1.15rem 1.2rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 246, 242, 0.92));
+  box-shadow: 0 10px 30px rgba(30, 32, 96, 0.06);
+}
+
+.showcase-videos h2 {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(1.35rem, 3.4vw, 1.85rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: var(--brand-blue);
+}
+
+.showcase-videos-lede {
+  margin: 0.4rem 0 1.1rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.showcase-videos-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 0.9rem;
+}
+
+.showcase-video-card {
+  margin: 0;
+  min-width: 0;
+}
+
+.showcase-video-card figcaption {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--brand-blue);
+}
+
+.showcase-video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid var(--line);
+  background: #000;
+}
+
+.showcase-video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
 .chat-page-head {
   margin-bottom: 0.85rem;
 }
@@ -1147,6 +1339,15 @@ button:disabled {
   .live-frame,
   .maya-video-frame {
     min-height: min(70vh, 560px);
+  }
+
+  .live-maya.rehearsal .live-frame {
+    min-height: 0;
+    height: auto;
+  }
+
+  .showcase-videos-grid {
+    grid-template-columns: 1fr;
   }
 
   .self-pip {

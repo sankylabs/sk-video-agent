@@ -283,6 +283,9 @@ ${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
   }
 - Free-trial ready: ${isTrialQualified(qualify) ? "YES" : `NO — ${trialQualifyGap(qualify)}`}
 
+## Talking to a person
+If they want a human / staff / "who can I talk to": offer that someone from the Steamoji Kirkland team can reach out. Say they can also call ${siteConfig.phone}. Do not invent a staff name. Never say [OFFER_REACH_OUT] or [REACH_OUT] out loud.
+
 ## LIVE FREE-SESSION AVAILABILITY (use for booking only when trial-ready)
 ${brief}
 

@@ -20,9 +20,30 @@ import {
 import { siteConfig, trialUrl } from "@/lib/config";
 import { mayaGreeting } from "@/lib/greeting";
 import {
+  encodeReachOutPick,
+  encodeSlotPick,
+  extractPickedStart,
+  extractSlotOptions,
+  MORE_OPTIONS_TEXT,
+  MORE_SLOTS_MARKER,
+  nextQuickQuestions,
+  OFFER_REACH_OUT_MARKER,
+  REACH_OUT_BUTTON,
+  stripChatMarkers,
+} from "@/lib/chat-actions";
+import {
+  extractReplicaSpeech,
+  extractUserSpeech,
+  isStaffOutreachConfirm,
+  isStaffTalkRequest,
+  replicaOfferedStaffOutreach,
+} from "@/lib/staff-outreach";
+import {
   SERVICES_IMAGE_MARKER,
   SERVICES_IMAGE_SRC,
 } from "@/lib/services";
+
+const MAYA_FACE_SRC = "/maya-r9d30b0e55ac.jpg";
 
 type Phase = "lobby" | "connecting" | "live" | "rehearsal" | "error";
 type Msg = { role: "user" | "assistant"; content: string };
@@ -44,10 +65,91 @@ type Props = {
   initialMessages?: Msg[];
 };
 
-function ChatMessageBody({ content }: { content: string }) {
-  const text = content.replaceAll(SERVICES_IMAGE_MARKER, "").trim();
-  if (!text) return null;
-  return <p>{text}</p>;
+function ChatMessageBody({
+  content,
+  onMediaLoad,
+  onPickSlot,
+  onMoreOptions,
+  onReachOut,
+  pickedStarts,
+  busy,
+  showMoreOptions,
+  showReachOut,
+}: {
+  content: string;
+  onMediaLoad?: () => void;
+  onPickSlot?: (start: string, label: string) => void;
+  onMoreOptions?: () => void;
+  onReachOut?: () => void;
+  pickedStarts?: Set<string>;
+  busy?: boolean;
+  showMoreOptions?: boolean;
+  showReachOut?: boolean;
+}) {
+  const showServices = content.includes(SERVICES_IMAGE_MARKER);
+  const slots = extractSlotOptions(content);
+  const openSlots = onPickSlot
+    ? slots.filter((slot) => !pickedStarts?.has(slot.start))
+    : [];
+  const more =
+    Boolean(showMoreOptions && onMoreOptions) &&
+    content.includes(MORE_SLOTS_MARKER);
+  const reachOut =
+    Boolean(showReachOut && onReachOut) &&
+    content.includes(OFFER_REACH_OUT_MARKER);
+  const text = stripChatMarkers(content);
+  if (!text && !showServices && !openSlots.length && !more && !reachOut) {
+    return null;
+  }
+  return (
+    <>
+      {text ? <p>{text}</p> : null}
+      {showServices ? (
+        <Image
+          src={SERVICES_IMAGE_SRC}
+          alt="Steamoji Kirkland services: memberships, camps, VEX Robotics Club, and birthday parties"
+          width={1024}
+          height={682}
+          className="services-card-image"
+          onLoad={onMediaLoad}
+        />
+      ) : null}
+      {openSlots.length || more || reachOut ? (
+        <div className="slot-chips">
+          {openSlots.map((slot) => (
+            <button
+              key={slot.start}
+              type="button"
+              disabled={busy}
+              onClick={() => onPickSlot?.(slot.start, slot.label)}
+            >
+              {slot.label}
+            </button>
+          ))}
+          {more ? (
+            <button
+              type="button"
+              className="slot-more"
+              disabled={busy}
+              onClick={() => onMoreOptions?.()}
+            >
+              {MORE_OPTIONS_TEXT}
+            </button>
+          ) : null}
+          {reachOut ? (
+            <button
+              type="button"
+              className="slot-more"
+              disabled={busy}
+              onClick={() => onReachOut?.()}
+            >
+              {REACH_OUT_BUTTON}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 const JOIN_TIMEOUT_MS = 45_000;
@@ -76,6 +178,11 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   );
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [offerStaffOutreach, setOfferStaffOutreach] = useState(false);
+  const [staffOutreachSent, setStaffOutreachSent] = useState(false);
+  const [staffOutreachBusy, setStaffOutreachBusy] = useState(false);
+  const offerStaffOutreachRef = useRef(false);
+  const staffOutreachSentRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -162,6 +269,44 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     heardAfterNudgeRef.current = false;
     parentAudioStreakRef.current = 0;
     lastParentSpeechAtRef.current = 0;
+  }
+
+  function setOfferReachOut(next: boolean) {
+    offerStaffOutreachRef.current = next;
+    setOfferStaffOutreach(next);
+  }
+
+  async function requestVideoOutreach() {
+    if (staffOutreachSentRef.current || staffOutreachBusy) return;
+    staffOutreachSentRef.current = true;
+    setStaffOutreachBusy(true);
+    setOfferReachOut(false);
+    try {
+      const res = await fetch("/api/staff-outreach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: lead?.id,
+          channel: "video",
+          userText: REACH_OUT_BUTTON,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setStaffOutreachSent(true);
+      speakMayaLine(
+        typeof data.content === "string" && data.content
+          ? data.content
+          : `I'll have someone from the Steamoji Kirkland team reach out to you. You can also call us now at ${siteConfig.phone}.`,
+      );
+    } catch {
+      staffOutreachSentRef.current = false;
+      setOfferReachOut(true);
+      speakMayaLine(
+        `I wasn't able to notify the team just now — please call us at ${siteConfig.phone}.`,
+      );
+    } finally {
+      setStaffOutreachBusy(false);
+    }
   }
 
   function speakMayaLine(text: string) {
@@ -389,6 +534,24 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     if (isParentStartedSpeaking(ev.data)) {
       noteParentSpeech();
     }
+    if (staffOutreachSentRef.current) return;
+    const userSpeech = extractUserSpeech(ev.data);
+    if (userSpeech) {
+      if (isStaffTalkRequest(userSpeech)) {
+        setOfferReachOut(true);
+      } else if (
+        offerStaffOutreachRef.current &&
+        (isStaffOutreachConfirm(userSpeech) ||
+          /^(yes|yeah|yep|please|sure|ok|okay)\b/i.test(userSpeech.trim()) &&
+            userSpeech.trim().length < 40)
+      ) {
+        void requestVideoOutreach();
+      }
+    }
+    const replicaSpeech = extractReplicaSpeech(ev.data);
+    if (replicaSpeech && replicaOfferedStaffOutreach(replicaSpeech)) {
+      setOfferReachOut(true);
+    }
   };
 
   dailyHandlersRef.current.onLocalAudioLevel = (ev) => {
@@ -547,6 +710,9 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       ).catch(() => undefined);
     }
     setActiveConversation(null);
+    setOfferReachOut(false);
+    staffOutreachSentRef.current = false;
+    setStaffOutreachSent(false);
     setPhase("lobby");
   }
 
@@ -607,7 +773,35 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
             ? "Video unavailable"
             : `${siteConfig.personaTitle} · ${siteConfig.brand}`;
 
-  const showAvatar = phase !== "live";
+  const showAvatar = phase !== "live" && phase !== "rehearsal";
+  const remainingChips = nextQuickQuestions(
+    messages.filter((m) => m.role === "user").map((m) => m.content),
+  );
+  const pickedStarts = new Set(
+    messages
+      .filter((m) => m.role === "user")
+      .map((m) => extractPickedStart(m.content))
+      .filter((start): start is string => Boolean(start)),
+  );
+  const latestSlotIndex = messages.reduce((acc, m, i) => {
+    if (m.role !== "assistant") return acc;
+    if (
+      extractSlotOptions(m.content).length ||
+      m.content.includes(MORE_SLOTS_MARKER)
+    ) {
+      return i;
+    }
+    return acc;
+  }, -1);
+  const alreadyRequestedOutreach = messages.some(
+    (m) => m.role === "user" && isStaffOutreachConfirm(m.content),
+  );
+  const latestReachOutIndex = messages.reduce((acc, m, i) => {
+    if (m.role === "assistant" && m.content.includes(OFFER_REACH_OUT_MARKER)) {
+      return i;
+    }
+    return acc;
+  }, -1);
 
   return (
     <div className={`live-maya ${embedded ? "is-embedded" : ""} ${phase}`}>
@@ -657,7 +851,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
               <div className="presence-glow" />
               <div className="presence-ring" />
               <Image
-                src="/maya-r9d30b0e55ac.jpg"
+                src={MAYA_FACE_SRC}
                 alt={`${siteConfig.personaName} — ${siteConfig.personaTitle}`}
                 width={960}
                 height={960}
@@ -688,6 +882,16 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
             </strong>
             <span>{statusLine}</span>
           </div>
+
+          {phase === "rehearsal" ? (
+            <button
+              type="button"
+              className="dock-btn danger chat-end-btn"
+              onClick={() => void leaveCall()}
+            >
+              End chat
+            </button>
+          ) : null}
 
           {phase === "lobby" ? (
             <div className="lobby-copy">
@@ -777,7 +981,17 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
         <a className="dock-cta" href={bookUrl} target="_blank" rel="noreferrer">
           Book free session
         </a>
-        {phase === "live" || phase === "rehearsal" ? (
+        {phase === "live" && offerStaffOutreach && !staffOutreachSent ? (
+          <button
+            type="button"
+            className="dock-btn"
+            disabled={staffOutreachBusy}
+            onClick={() => void requestVideoOutreach()}
+          >
+            {REACH_OUT_BUTTON}
+          </button>
+        ) : null}
+        {phase === "live" ? (
           <button
             type="button"
             className="dock-btn danger"
@@ -794,31 +1008,69 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
         <>
           <p className="living-note">
             Chat with {siteConfig.personaName} about Steamoji Kirkland — programs,
-            schedules, and free trials. Prefer video? Leave and choose{" "}
+            schedules, and free trials. Prefer video? End chat and choose{" "}
             <strong>Talk with {siteConfig.personaName}</strong>.
           </p>
-          <figure className="services-card">
-            <Image
-              src={SERVICES_IMAGE_SRC}
-              alt="Steamoji Kirkland services: memberships, camps, VEX Robotics Club, and birthday parties"
-              width={1024}
-              height={682}
-              className="services-card-image"
-            />
-          </figure>
           <section className="transcript-panel rehearsal-chat">
             {messages.map((m, i) => (
               <div key={i} className={`bubble ${m.role}`}>
-                <span>
-                  {m.role === "assistant" ? siteConfig.personaName : "You"}
-                </span>
-                <ChatMessageBody content={m.content} />
+                {m.role === "assistant" ? (
+                  <Image
+                    src={MAYA_FACE_SRC}
+                    alt=""
+                    width={40}
+                    height={40}
+                    className="bubble-avatar"
+                  />
+                ) : null}
+                <div className="bubble-body">
+                  <span>
+                    {m.role === "assistant" ? siteConfig.personaName : "You"}
+                  </span>
+                  <ChatMessageBody
+                    content={m.content}
+                    busy={busy}
+                    pickedStarts={pickedStarts}
+                    showMoreOptions={i === latestSlotIndex}
+                    showReachOut={
+                      i === latestReachOutIndex && !alreadyRequestedOutreach
+                    }
+                    onPickSlot={
+                      m.role === "assistant"
+                        ? (start, label) =>
+                            void sendMessage(encodeSlotPick(start, label))
+                        : undefined
+                    }
+                    onMoreOptions={
+                      m.role === "assistant"
+                        ? () => void sendMessage(MORE_OPTIONS_TEXT)
+                        : undefined
+                    }
+                    onReachOut={
+                      m.role === "assistant"
+                        ? () => void sendMessage(encodeReachOutPick())
+                        : undefined
+                    }
+                    onMediaLoad={() =>
+                      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+                    }
+                  />
+                </div>
               </div>
             ))}
             {busy ? (
               <div className="bubble assistant">
-                <span>{siteConfig.personaName}</span>
-                <p>…</p>
+                <Image
+                  src={MAYA_FACE_SRC}
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="bubble-avatar"
+                />
+                <div className="bubble-body">
+                  <span>{siteConfig.personaName}</span>
+                  <p>…</p>
+                </div>
               </div>
             ) : null}
             <div ref={bottomRef} />
@@ -835,23 +1087,20 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
               Send
             </button>
           </form>
-          <div className="starter-chips">
-            {[
-              "What services do you offer?",
-              "How does Steamoji work?",
-              "What ages do you serve?",
-              "Any free session times this week?",
-            ].map((chip) => (
-              <button
-                key={chip}
-                type="button"
-                disabled={busy}
-                onClick={() => void sendMessage(chip)}
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
+          {remainingChips.length ? (
+            <div className="starter-chips">
+              {remainingChips.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void sendMessage(chip)}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

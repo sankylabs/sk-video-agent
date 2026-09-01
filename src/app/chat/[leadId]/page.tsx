@@ -1,4 +1,5 @@
 import { LiveMaya } from "@/components/LiveMaya";
+import { SteamojiVideos } from "@/components/SteamojiVideos";
 import { openLeadSession } from "@/lib/memory";
 
 export default async function LeadChatPage({
@@ -28,6 +29,7 @@ export default async function LeadChatPage({
         }
         initialMessages={session.messages}
       />
+      <SteamojiVideos />
     </main>
   );
 }

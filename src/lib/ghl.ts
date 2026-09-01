@@ -192,6 +192,37 @@ export async function upsertGhlContact(input: {
   return { contactId };
 }
 
+export async function createGhlContactNote(contactId: string, body: string) {
+  const config = getGhlConfig();
+  if (!config) throw new Error("GHL is not configured");
+  return ghlJson(config, `/contacts/${contactId}/notes`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export async function sendGhlEmail(input: {
+  contactId: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}) {
+  const config = getGhlConfig();
+  if (!config) throw new Error("GHL is not configured");
+  return ghlJson(config, "/conversations/messages", {
+    method: "POST",
+    body: JSON.stringify({
+      type: "Email",
+      contactId: input.contactId,
+      subject: input.subject,
+      html: input.html,
+      message: input.text,
+      emailTo: input.to,
+    }),
+  });
+}
+
 export type GhlContactProfile = {
   id: string;
   name?: string;

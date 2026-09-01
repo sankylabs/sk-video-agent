@@ -11,6 +11,7 @@ import {
 } from "./ghl";
 import { isValidParentEmail } from "./qualify";
 import { buildTrialSubject } from "./trial-subject";
+import { isMoreOptionsRequest } from "./chat-actions";
 
 export const EMAIL_REQUIRED_BOOKING_ERROR =
   "A parent email is required to book this free session. Please share your email so we can send the calendar invite.";
@@ -448,6 +449,8 @@ export function isAvailabilityQuestion(
   const t = text.toLowerCase().trim();
   if (!t) return false;
 
+  if (isMoreOptionsRequest(t)) return true;
+
   // "What do you do in a free trial?" is experiential — not a slot lookup
   if (
     /\b(what (do you|happens|is it like)|what'?s it like|tell me about|walk me through|during|in a)\b/.test(
@@ -784,9 +787,19 @@ export async function buildAvailabilityBrief(daysAhead = 10) {
 export async function answerAvailabilityQuestion(
   userText: string,
   daysAhead = 14,
-): Promise<{ reply: string; matches: FreeSlot[]; exact: FreeSlot[] }> {
+  opts?: { excludeStarts?: string[] },
+): Promise<{
+  reply: string;
+  matches: FreeSlot[];
+  exact: FreeSlot[];
+  hasMore: boolean;
+}> {
   const config = await loadScheduleConfig();
-  const resolved = resolveDateKey(userText, config.timezone);
+  const moreOptions = isMoreOptionsRequest(userText);
+  const exclude = new Set(opts?.excludeStarts ?? []);
+  const resolved = moreOptions
+    ? null
+    : resolveDateKey(userText, config.timezone);
 
   // Pull far enough ahead for dates like "Sept 1"
   let window = daysAhead;
@@ -801,12 +814,13 @@ export async function answerAvailabilityQuestion(
   }
 
   const slots = await getUpcomingSlots(window);
-  const { dayHint, dateLabel, timeHint, timeMinutes } = extractDayTimeHints(
-    userText,
-    config.timezone,
-  );
-  const daySlots = resolveRelativeDay(dayHint, config.timezone, slots);
+  const remainingAll = slots.filter((s) => !exclude.has(s.start));
+  const { dayHint, dateLabel, timeHint, timeMinutes } = moreOptions
+    ? { dayHint: "", dateLabel: "", timeHint: "", timeMinutes: null as number | null }
+    : extractDayTimeHints(userText, config.timezone);
+  const daySlots = resolveRelativeDay(dayHint, config.timezone, remainingAll);
   const focusLabel = dateLabel || dayHint;
+  const batchSize = moreOptions ? 4 : 6;
 
   let exact: FreeSlot[] = [];
   if (timeMinutes != null) {
@@ -824,25 +838,40 @@ export async function answerAvailabilityQuestion(
     });
   }
 
-  const pool = dayHint ? daySlots : slots;
-  const matches = (exact.length ? exact : pool).slice(0, 6);
+  const pool = dayHint ? daySlots : remainingAll;
+  const matches = (exact.length ? exact : pool).slice(0, batchSize);
+  const leftover = (exact.length ? remainingAll : pool).filter(
+    (s) => !matches.some((m) => m.start === s.start),
+  );
+  const hasMore = leftover.length > 0;
 
   if (!slots.length) {
     return {
       reply: `I don't see open trial slots on the calendar right now — you can also book online or call us.`,
       matches: [],
       exact: [],
+      hasMore: false,
+    };
+  }
+
+  if (moreOptions && !matches.length) {
+    return {
+      reply: `Those were the open trial times I have on the calendar right now. You can also book online or call us.`,
+      matches: [],
+      exact: [],
+      hasMore: false,
     };
   }
 
   if (dayHint && !daySlots.length) {
-    const alts = slots
+    const alts = remainingAll
       .slice(0, 4)
       .map((s) => `${s.label.split(" ")[0]} ${s.dayKey} ${startTimePhrase(s)}`);
     return {
       reply: `I don't have open trial times for ${focusLabel}. Closest opens: ${alts.join("; ")}.`,
-      matches: slots.slice(0, 4),
+      matches: remainingAll.slice(0, 4),
       exact: [],
+      hasMore: remainingAll.length > 4,
     };
   }
 
@@ -852,18 +881,18 @@ export async function answerAvailabilityQuestion(
       reply: `Yes — ${hit.label} is open on our calendar. I can hold it if you'd like.`,
       matches: exact.slice(0, 4),
       exact,
+      hasMore,
     };
   }
 
   if (timeHint && !exact.length) {
-    const alts = (dayHint ? daySlots : slots)
-      .slice(0, 4)
-      .map((s) => startTimePhrase(s));
+    const alts = (dayHint ? daySlots : remainingAll).slice(0, 4);
     const dayBit = focusLabel ? ` on ${focusLabel}` : "";
     return {
-      reply: `${timeHint}${dayBit} isn't open. Nearby opens: ${alts.join(", ")}.`,
-      matches: (dayHint ? daySlots : slots).slice(0, 4),
+      reply: `${timeHint}${dayBit} isn't open. Nearby opens: ${alts.map((s) => startTimePhrase(s)).join(", ")}.`,
+      matches: alts,
       exact: [],
+      hasMore: (dayHint ? daySlots : remainingAll).length > 4,
     };
   }
 
@@ -880,10 +909,17 @@ export async function answerAvailabilityQuestion(
     chunks.push(`${weekday} ${dayKey} ${times}`);
   }
 
-  const focus = focusLabel ? ` on ${focusLabel}` : " this week";
+  const focus = moreOptions
+    ? ""
+    : focusLabel
+      ? ` on ${focusLabel}`
+      : " this week";
   return {
-    reply: `Open trial times${focus}: ${chunks.join("; ")}.`,
+    reply: moreOptions
+      ? `More open trial times: ${chunks.join("; ")}.`
+      : `Open trial times${focus}: ${chunks.join("; ")}.`,
     matches,
     exact: [],
+    hasMore,
   };
 }

@@ -27,6 +27,20 @@ import {
   isServicesQuestion,
 } from "@/lib/services";
 import {
+  collectShownSlotStarts,
+  ensureMoreSlotsMarker,
+  ensureOfferReachOutMarker,
+  ensureSlotMarkers,
+  extractPickedStart,
+  isMoreOptionsRequest,
+  slotsOfferedInText,
+} from "@/lib/chat-actions";
+import { sendStaffOutreach } from "@/lib/staff-outreach-mail";
+import {
+  isStaffOutreachConfirm,
+  isStaffTalkRequest,
+} from "@/lib/staff-outreach";
+import {
   answerAvailabilityQuestion,
   bookSlot,
   buildAvailabilityBrief,
@@ -78,7 +92,11 @@ export async function POST(req: Request) {
     .reverse()
     .find((m) => m.role === "assistant")?.content;
   const userText = lastUser?.content ?? "";
-  const { brief, slots } = await buildAvailabilityBrief(14);
+  const pickedStart = extractPickedStart(userText);
+  const moreOptions = isMoreOptionsRequest(userText);
+  const shownStarts = collectShownSlotStarts(messages);
+  const calendarWindow = moreOptions ? 21 : 14;
+  const { brief, slots } = await buildAvailabilityBrief(calendarWindow);
 
   const qualify = inferQualifyContext(messages, lead);
   const ageFromLatest = parseChildAge(userText);
@@ -89,9 +107,12 @@ export async function POST(req: Request) {
   });
   const wantsCalendar =
     Boolean(userText) &&
+    !pickedStart &&
     isAvailabilityQuestion(userText, priorAssistant);
   const calendarLookup = wantsCalendar
-    ? await answerAvailabilityQuestion(userText, 14)
+    ? await answerAvailabilityQuestion(userText, calendarWindow, {
+        excludeStarts: shownStarts,
+      })
     : null;
   const askingCamps = isCampQuestion(userText);
   const campsBrief = askingCamps
@@ -156,6 +177,21 @@ ${
     : lead?.pendingBookStart && !emailKnown
       ? `- Pending confirmed slot: ${lead.pendingBookStart} — still waiting on parent email before booking.`
       : ""
+}
+${
+  pickedStart
+    ? `- They just tapped slot ${pickedStart}. Treat that as a confirmed choice — do not list more times. ${
+        emailKnown
+          ? `Include [BOOK:${pickedStart}] if not already booked.`
+          : "Ask for their email for the calendar invite; do not emit [BOOK:…] yet."
+      }`
+    : moreOptions
+      ? `- They asked for more time options. Offer the NEXT unused times from the calendar lookup — do not repeat times already listed.`
+      : isStaffTalkRequest(userText)
+        ? `- They asked to talk to a person. Offer that someone from the Steamoji Kirkland team can reach out. In this text reply include [OFFER_REACH_OUT] once. Do not invent a staff name.`
+        : isStaffOutreachConfirm(userText, priorAssistant)
+          ? `- They accepted a team callback. Confirm someone from the academy will reach out. Include [REACH_OUT] if you haven't.`
+          : ""
 }
 
 ## LIVE FREE-SESSION AVAILABILITY (source of truth — use only when trial-ready or they ask availability)
@@ -246,6 +282,18 @@ If they confirmed a time that matches${
     content = ensureServicesImageMarker(content);
   }
 
+  if (isStaffOutreachConfirm(userText, priorAssistant)) {
+    const outreach = await sendStaffOutreach({
+      lead,
+      channel: "chat",
+      userText,
+      recentMessages: messages,
+    });
+    content = outreach.parentReply;
+  } else if (isStaffTalkRequest(userText)) {
+    content = ensureOfferReachOutMarker(content);
+  }
+
   const toBook = extractBookMarkers(content);
   const booked: string[] = [];
   const bookErrors: string[] = [];
@@ -310,9 +358,14 @@ If they confirmed a time that matches${
     await recordBook(start);
   }
 
+  if (pickedStart && !toBook.includes(pickedStart)) {
+    await recordBook(pickedStart);
+  }
+
   // After email arrives, finish a slot we held pending.
   if (
     !toBook.length &&
+    !pickedStart &&
     emailKnown &&
     lead?.pendingBookStart &&
     (emailFromLatest ||
@@ -341,6 +394,28 @@ If they confirmed a time that matches${
   }
 
   content = stripBookMarkers(content);
+
+  const offeredSlots = (() => {
+    if (booked.length || pickedStart) return [];
+    if (isStaffTalkRequest(userText) || isStaffOutreachConfirm(userText, priorAssistant)) {
+      return [];
+    }
+    if (moreOptions) return calendarLookup?.matches ?? [];
+    const pool = calendarLookup?.matches?.length
+      ? calendarLookup.matches
+      : slots;
+    const mentioned = slotsOfferedInText(content, pool);
+    if (mentioned.length) return mentioned;
+    return calendarLookup?.matches ?? [];
+  })();
+  if (offeredSlots.length) {
+    content = ensureSlotMarkers(content, offeredSlots);
+  }
+  const shownNow = new Set([...shownStarts, ...offeredSlots.map((s) => s.start)]);
+  const hasMoreTimes =
+    Boolean(offeredSlots.length) &&
+    (calendarLookup?.hasMore || slots.some((s) => !shownNow.has(s.start)));
+  content = ensureMoreSlotsMarker(content, hasMoreTimes);
 
   if (bookErrors.some((e) => /email/i.test(e)) && !booked.length) {
     content = ensureAskForEmail(content);

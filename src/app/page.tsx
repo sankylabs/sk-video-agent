@@ -1,3 +1,4 @@
+import { SteamojiVideos } from "@/components/SteamojiVideos";
 import { siteConfig } from "@/lib/config";
 
 export default function HomePage() {
@@ -29,6 +30,8 @@ export default function HomePage() {
         your text or email. It looks like{" "}
         <code>/chat/your-id</code>.
       </p>
+
+      <SteamojiVideos />
     </main>
   );
 }
