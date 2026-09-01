@@ -18,7 +18,7 @@ import {
   isParentStartedSpeaking,
 } from "@/lib/call-timeout";
 import { siteConfig, trialUrl } from "@/lib/config";
-import { mayaGreeting } from "@/lib/greeting";
+import { mayaGreeting, parseChildAge } from "@/lib/greeting";
 import {
   claimsCalendarBooking,
   claimsCalendarCancel,
@@ -45,6 +45,10 @@ import {
   isStaffTalkRequest,
   replicaOfferedStaffOutreach,
 } from "@/lib/staff-outreach";
+import {
+  extractUnqualifiedReason,
+  isDistanceDecline,
+} from "@/lib/unqualified-detect";
 import {
   SERVICES_IMAGE_MARKER,
   SERVICES_IMAGE_SRC,
@@ -194,6 +198,8 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const replicaSpeechRef = useRef("");
   const videoBookedStartsRef = useRef(new Set<string>());
   const videoBookBusyRef = useRef(false);
+  const videoQualifyBusyRef = useRef(false);
+  const videoQualifyDoneRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -364,6 +370,30 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       );
     } finally {
       videoBookBusyRef.current = false;
+    }
+  }
+
+  async function requestVideoQualify(replicaText: string) {
+    if (videoQualifyBusyRef.current || videoQualifyDoneRef.current) return;
+    videoQualifyBusyRef.current = true;
+    try {
+      const res = await fetch("/api/video-qualify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: lead?.id,
+          userText: lastUserSpeechRef.current,
+          replicaText,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.ok && !data.skipped) {
+        videoQualifyDoneRef.current = true;
+      }
+    } catch {
+      /* staff email / GHL retry on next utterance */
+    } finally {
+      videoQualifyBusyRef.current = false;
     }
   }
 
@@ -606,6 +636,18 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       replicaSpeechRef.current =
         `${replicaSpeechRef.current} ${replicaSpeech}`.trim().slice(-2000);
     }
+    const ageFromSpeech = userSpeech ? parseChildAge(userSpeech) : null;
+    if (
+      userSpeech &&
+      (extractUnqualifiedReason(userSpeech) ||
+        isDistanceDecline(userSpeech) ||
+        (ageFromSpeech != null && (ageFromSpeech < 5 || ageFromSpeech > 14)))
+    ) {
+      void requestVideoQualify(replicaSpeechRef.current);
+    }
+    if (replicaSpeech && extractUnqualifiedReason(replicaSpeech)) {
+      void requestVideoQualify(replicaSpeech);
+    }
     if (
       replicaSpeech &&
       !isExistingBookingRecap(replicaSpeech)
@@ -821,6 +863,8 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     replicaSpeechRef.current = "";
     videoBookedStartsRef.current = new Set();
     videoBookBusyRef.current = false;
+    videoQualifyBusyRef.current = false;
+    videoQualifyDoneRef.current = false;
     setPhase("lobby");
   }
 

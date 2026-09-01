@@ -70,7 +70,7 @@ function transcriptSnippet(
     .map((m) => {
       const who = m.role === "user" ? "Parent" : "Maya";
       const body = m.content
-        .replace(/\[(?:SLOT|PICK|BOOK|CANCEL|OFFER_REACH_OUT|REACH_OUT|MORE_SLOTS|SERVICES_IMAGE)[^\]]*\]/g, "")
+        .replace(/\[(?:SLOT|PICK|BOOK|CANCEL|UNQUALIFIED|OFFER_REACH_OUT|REACH_OUT|MORE_SLOTS|SERVICES_IMAGE)[^\]]*\]/g, "")
         .replace(/\s+/g, " ")
         .trim();
       return body ? `${who}: ${body}` : "";
@@ -514,3 +514,133 @@ export async function sendBookingFallback(input: BookingFallbackInput) {
     parentReply: email.parentReply,
   };
 }
+
+export type UnqualifiedMailHit = {
+  reason: "age" | "distance";
+  detail: string;
+};
+
+export type UnqualifiedMailInput = {
+  lead?: Lead | null;
+  channel: OutreachChannel;
+  hit: UnqualifiedMailHit;
+  note: string;
+  userText?: string;
+  recentMessages?: { role: string; content: string }[];
+};
+
+export function buildUnqualifiedEmail(input: UnqualifiedMailInput) {
+  const lead = input.lead;
+  const parentName = lead?.name?.trim() || "a parent";
+  const channelLabel = input.channel === "video" ? "live video" : "text chat";
+  const when = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date());
+  const chatId = lead?.ghlContactId || lead?.id;
+  const chatUrl = chatId ? `${appBaseUrl()}/chat/${chatId}` : appBaseUrl();
+  const kids = childLines(lead);
+  const reasonLabel =
+    input.hit.reason === "age" ? "Age outside 5–14" : "Too far / closer academy";
+  const snippet = transcriptSnippet(input.recentMessages);
+  const subject = `Maya: ${parentName} marked unqualified — ${reasonLabel}`;
+
+  const text = [
+    `Maya marked this lead Unqualified in GHL.`,
+    "",
+    `Reason: ${reasonLabel}`,
+    `Details: ${input.hit.detail}`,
+    `CRM note: ${input.note}`,
+    "",
+    `When: ${when}`,
+    `Channel: ${channelLabel}`,
+    field("Parent", lead?.name),
+    field("Email", lead?.email),
+    field("Phone", lead?.phone),
+    kids.text,
+    field("Location", lead?.location || lead?.city || lead?.resideKirkland),
+    field("GHL contact", lead?.ghlContactId),
+    field("Maya chat", chatUrl),
+    input.userText ? field("Their words", input.userText) : null,
+    snippet ? `\nRecent chat:\n${snippet}` : null,
+    "",
+    `Academy line: ${siteConfig.phone}`,
+  ]
+    .filter((line) => line != null)
+    .join("\n");
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f7f6f2;font-family:Arial,Helvetica,sans-serif;color:#1e2060;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f6f2;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e4e2da;">
+          <tr>
+            <td style="background:#2f3386;color:#ffffff;padding:20px 24px;">
+              <p style="margin:0;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.85;">Maya · ${htmlEscape(siteConfig.personaTitle)}</p>
+              <h1 style="margin:8px 0 0;font-size:22px;line-height:1.3;font-weight:700;">Lead marked Unqualified</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">
+                Maya moved this contact to the <strong>Unqualified</strong> pipeline stage, tagged them <strong>unqualified</strong>, and added a CRM note.
+              </p>
+              <p style="margin:0 0 16px;padding:12px 14px;background:#f7f6f2;border-radius:10px;font-size:16px;font-weight:700;line-height:1.4;">
+                ${htmlEscape(input.note)}
+              </p>
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;line-height:1.45;border-collapse:collapse;">
+                <tr><th align="left" style="width:140px;color:#5c5a70;font-weight:600;">Reason</th><td>${htmlEscape(reasonLabel)}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Details</th><td>${htmlEscape(input.hit.detail)}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">When</th><td>${htmlEscape(when)}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Channel</th><td>${htmlEscape(channelLabel)}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Parent</th><td>${htmlEscape(lead?.name || "—")}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Email</th><td>${lead?.email ? `<a href="mailto:${htmlEscape(lead.email)}">${htmlEscape(lead.email)}</a>` : "—"}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Phone</th><td>${lead?.phone ? `<a href="tel:${htmlEscape(lead.phone)}">${htmlEscape(lead.phone)}</a>` : "—"}</td></tr>
+                ${kids.html}
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Location</th><td>${htmlEscape(lead?.location || lead?.city || lead?.resideKirkland || "—")}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Maya chat</th><td><a href="${htmlEscape(chatUrl)}">${htmlEscape(chatUrl)}</a></td></tr>
+                ${lead?.ghlContactId ? `<tr><th align="left" style="color:#5c5a70;font-weight:600;">GHL contact</th><td>${htmlEscape(lead.ghlContactId)}</td></tr>` : ""}
+                ${input.userText ? `<tr><th align="left" style="color:#5c5a70;font-weight:600;">Their words</th><td>${htmlEscape(input.userText)}</td></tr>` : ""}
+              </table>
+              ${
+                snippet
+                  ? `<p style="margin:20px 0 8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#5c5a70;font-weight:700;">Recent chat</p>
+              <pre style="margin:0;padding:12px 14px;background:#f7f6f2;border-radius:10px;white-space:pre-wrap;font-size:13px;line-height:1.45;">${htmlEscape(snippet)}</pre>`
+                  : ""
+              }
+              <p style="margin:20px 0 0;font-size:13px;color:#5c5a70;">Academy line: ${htmlEscape(siteConfig.phone)}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return { to: siteConfig.email, subject, text, html };
+}
+
+export async function sendUnqualifiedNotice(input: UnqualifiedMailInput) {
+  const email = buildUnqualifiedEmail(input);
+  const { sent, errors } = await sendKirklandStaffEmail({
+    subject: email.subject,
+    text: email.text,
+    html: email.html,
+    lead: input.lead,
+  });
+  if (!sent) {
+    console.error("[unqualified] staff email did not send", errors);
+    return { ok: false as const, errors };
+  }
+  return { ok: true as const, errors };
+}
+

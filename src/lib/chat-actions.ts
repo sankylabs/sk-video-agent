@@ -94,6 +94,7 @@ export function stripBookMarkers(text: string) {
   return text
     .replace(/\s*\[BOOK:[^\]]+\]\s*/g, " ")
     .replace(/\s*\[CANCEL(?::[^\]]*)?\]\s*/g, " ")
+    .replace(/\s*\[UNQUALIFIED:(age|distance)\]\s*/gi, " ")
     .trim();
 }
 
@@ -232,6 +233,7 @@ export function stripChatMarkers(text: string) {
     .replace(/\[PICK:[^\]]+\]/g, "")
     .replace(/\[BOOK:[^\]]+\]/g, "")
     .replace(/\[CANCEL(?::[^\]]*)?\]/g, "")
+    .replace(/\[UNQUALIFIED:[^\]]+\]/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

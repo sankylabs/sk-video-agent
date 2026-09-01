@@ -45,6 +45,10 @@ import {
 } from "@/lib/chat-actions";
 import { sendStaffOutreach } from "@/lib/staff-outreach-mail";
 import {
+  commitUnqualifiedLead,
+  detectUnqualified,
+} from "@/lib/unqualified";
+import {
   isStaffOutreachConfirm,
   isStaffTalkRequest,
 } from "@/lib/staff-outreach";
@@ -103,6 +107,11 @@ export async function POST(req: Request) {
   const trialReady = isTrialQualified({
     ...qualify,
     age: effectiveAge,
+  });
+  const qualifyNow = { ...qualify, age: effectiveAge };
+  const unqualFromUser = detectUnqualified({
+    userText,
+    qualify: qualifyNow,
   });
   const wantsCalendar =
     Boolean(userText) &&
@@ -174,6 +183,11 @@ ${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
       : "UNKNOWN — required before booking. When they confirm a slot, ask for their email first; do NOT emit [BOOK:…] until you have it."
   }
 - Free-trial ready: ${trialReady ? "YES — may soft-invite trial when they're comfortable" : `NO — ${trialQualifyGap({ ...qualify, age: effectiveAge })}. Do not suggest booking a free trial yet.`}
+${
+  unqualFromUser
+    ? `- They are UNQUALIFIED (${unqualFromUser.reason}: ${unqualFromUser.detail}). Be warm, do not push a Kirkland trial, and include [UNQUALIFIED:${unqualFromUser.reason}] once (do not pronounce it).`
+    : ""
+}
 ${
   lead?.pendingBookStart && emailKnown
     ? `- Pending confirmed slot: ${lead.pendingBookStart} — email is now known; include [BOOK:${lead.pendingBookStart}] to finish booking.`
@@ -303,6 +317,13 @@ If they confirmed a time that matches${
     content = ensureOfferReachOutMarker(content);
   }
 
+  const unqualHit =
+    detectUnqualified({
+      userText,
+      replicaText: content,
+      qualify: qualifyNow,
+    }) || unqualFromUser;
+
   const toBook = extractBookMarkers(content);
   const cancelMarkers = extractCancelMarkers(content);
   const booked: string[] = [];
@@ -372,71 +393,73 @@ If they confirmed a time that matches${
     return result;
   }
 
-  for (const start of toBook) {
-    await recordBook(start);
-  }
+  if (!unqualHit) {
+    for (const start of toBook) {
+      await recordBook(start);
+    }
 
-  if (pickedStart && !toBook.includes(pickedStart)) {
-    await recordBook(pickedStart);
-  }
+    if (pickedStart && !toBook.includes(pickedStart)) {
+      await recordBook(pickedStart);
+    }
 
-  // After email arrives, finish a slot we held pending.
-  if (
-    !toBook.length &&
-    !pickedStart &&
-    emailKnown &&
-    lead?.pendingBookStart &&
-    (emailFromLatest ||
-      /\b(email|e-mail|@)\b/i.test(userText) ||
-      /\b(yes|yeah|yep|book|reserve|that works|sounds good|perfect|confirm)\b/i.test(
+    // After email arrives, finish a slot we held pending.
+    if (
+      !toBook.length &&
+      !pickedStart &&
+      emailKnown &&
+      lead?.pendingBookStart &&
+      (emailFromLatest ||
+        /\b(email|e-mail|@)\b/i.test(userText) ||
+        /\b(yes|yeah|yep|book|reserve|that works|sounds good|perfect|confirm)\b/i.test(
+          userText,
+        ))
+    ) {
+      await recordBook(lead.pendingBookStart);
+    }
+
+    // Demo / confirm path: if they clearly confirm a looked-up exact slot, book it.
+    if (
+      !toBook.length &&
+      !booked.length &&
+      calendarLookup?.exact[0] &&
+      /\b(yes|yeah|yep|book|reserve|that works|sounds good|perfect|confirm|lets? do)\b/i.test(
         userText,
-      ))
-  ) {
-    await recordBook(lead.pendingBookStart);
-  }
-
-  // Demo / confirm path: if they clearly confirm a looked-up exact slot, book it.
-  if (
-    !toBook.length &&
-    !booked.length &&
-    calendarLookup?.exact[0] &&
-    /\b(yes|yeah|yep|book|reserve|that works|sounds good|perfect|confirm|lets? do)\b/i.test(
-      userText,
-    )
-  ) {
-    const hit = calendarLookup.exact[0];
-    const result = await recordBook(hit.start);
-    if (result.ok && !claimsCalendarBooking(content)) {
-      content = `${content} I've reserved ${result.booking.label || hit.start} on our calendar.`;
-    }
-  }
-
-  // Model said it's reserved without [BOOK:] / a tap — still try to write GHL.
-  if (!booked.length && claimsCalendarBooking(content)) {
-    const inferred = await resolveBookStartFromSpeech([userText, content], {
-      excludeStarts,
-    });
-    if (
-      inferred &&
-      inferred !== pickedStart &&
-      !toBook.includes(inferred)
+      )
     ) {
-      await recordBook(inferred);
+      const hit = calendarLookup.exact[0];
+      const result = await recordBook(hit.start);
+      if (result.ok && !claimsCalendarBooking(content)) {
+        content = `${content} I've reserved ${result.booking.label || hit.start} on our calendar.`;
+      }
     }
-  }
 
-  // Parent named/confirmed a specific time without a tap or [BOOK:] tag.
-  if (!booked.length && isSlotConfirmation(userText)) {
-    const inferred = await resolveBookStartFromSpeech(
-      [userText, priorAssistant || ""],
-      { excludeStarts },
-    );
-    if (
-      inferred &&
-      inferred !== pickedStart &&
-      !toBook.includes(inferred)
-    ) {
-      await recordBook(inferred);
+    // Model said it's reserved without [BOOK:] / a tap — still try to write GHL.
+    if (!booked.length && claimsCalendarBooking(content)) {
+      const inferred = await resolveBookStartFromSpeech([userText, content], {
+        excludeStarts,
+      });
+      if (
+        inferred &&
+        inferred !== pickedStart &&
+        !toBook.includes(inferred)
+      ) {
+        await recordBook(inferred);
+      }
+    }
+
+    // Parent named/confirmed a specific time without a tap or [BOOK:] tag.
+    if (!booked.length && isSlotConfirmation(userText)) {
+      const inferred = await resolveBookStartFromSpeech(
+        [userText, priorAssistant || ""],
+        { excludeStarts },
+      );
+      if (
+        inferred &&
+        inferred !== pickedStart &&
+        !toBook.includes(inferred)
+      ) {
+        await recordBook(inferred);
+      }
     }
   }
 
@@ -446,6 +469,26 @@ If they confirmed a time that matches${
       (isCancelRequest(userText) && !isSlotConfirmation(userText)))
   ) {
     await recordCancel();
+  }
+
+  if (unqualHit) {
+    const marked = await commitUnqualifiedLead(lead, unqualHit, {
+      channel: "chat",
+      userText,
+      recentMessages: [
+        ...messages,
+        { role: "assistant", content },
+      ],
+    });
+    if (marked.ok && lead) {
+      lead = {
+        ...lead,
+        tags: [...new Set([...(lead.tags || []), "unqualified"])],
+        opportunityStage: "Unqualified",
+        unqualifiedAt: new Date().toISOString(),
+        unqualifiedReason: unqualHit.reason,
+      };
+    }
   }
 
   content = stripBookMarkers(content);
@@ -471,7 +514,7 @@ If they confirmed a time that matches${
   }
 
   const offeredSlots = (() => {
-    if (booked.length || cancelled || fallbackReply) return [];
+    if (booked.length || cancelled || fallbackReply || unqualHit) return [];
     if (pickedStart && !bookErrors.length) return [];
     if (isStaffTalkRequest(userText) || isStaffOutreachConfirm(userText, priorAssistant)) {
       return [];

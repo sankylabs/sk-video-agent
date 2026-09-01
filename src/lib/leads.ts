@@ -45,6 +45,9 @@ export type Lead = {
   /** Last time Maya asked staff to create a trial after GHL booking failed. */
   bookingFallbackAt?: string;
   bookingFallbackStart?: string;
+  /** Last time Maya marked this lead unqualified in GHL. */
+  unqualifiedAt?: string;
+  unqualifiedReason?: string;
   /** Loaded from Postgres (not written to leads.json). */
   conversation?: LeadMessage[];
   lastOpenedAt?: string;

@@ -648,3 +648,157 @@ export function normalizeGhlAppointmentStatus(
 export function ghlEndIso(startIso: string, sessionMinutes = 30) {
   return addMinutesToIso(startIso, sessionMinutes);
 }
+
+export const UNQUALIFIED_TAG = "unqualified";
+
+type GhlPipelineStage = { id: string; name: string };
+type GhlPipeline = { id: string; name: string; stages: GhlPipelineStage[] };
+
+let pipelineCache: GhlPipeline[] | null = null;
+
+export async function listGhlPipelines(): Promise<GhlPipeline[]> {
+  const config = getGhlConfig();
+  if (!config) return [];
+  if (pipelineCache) return pipelineCache;
+  const raw = await ghlJson<{ pipelines?: GhlPipeline[] }>(
+    config,
+    "/opportunities/pipelines",
+    { query: { locationId: config.locationId } },
+  );
+  pipelineCache = (raw.pipelines || []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    stages: (p.stages || []).map((s) => ({ id: s.id, name: s.name })),
+  }));
+  return pipelineCache;
+}
+
+function isUnqualifiedName(name?: string) {
+  return /^unqualified$/i.test((name || "").trim());
+}
+
+export async function findUnqualifiedStage(currentPipelineId?: string) {
+  const envPipe = process.env.GHL_PIPELINE_ID?.trim();
+  const envStage = process.env.GHL_UNQUALIFIED_STAGE_ID?.trim();
+  if (envPipe && envStage) {
+    return { pipelineId: envPipe, stageId: envStage };
+  }
+
+  const pipes = await listGhlPipelines();
+  if (currentPipelineId) {
+    const current = pipes.find((p) => p.id === currentPipelineId);
+    const stage = current?.stages.find((s) => isUnqualifiedName(s.name));
+    if (current && stage) {
+      return { pipelineId: current.id, stageId: stage.id };
+    }
+  }
+  const named = pipes.find((p) => isUnqualifiedName(p.name));
+  if (named?.stages[0]) {
+    return { pipelineId: named.id, stageId: named.stages[0].id };
+  }
+  for (const pipe of pipes) {
+    const stage = pipe.stages.find((s) => isUnqualifiedName(s.name));
+    if (stage) return { pipelineId: pipe.id, stageId: stage.id };
+  }
+  return null;
+}
+
+export async function addGhlContactTags(contactId: string, tags: string[]) {
+  const config = getGhlConfig();
+  if (!config) throw new Error("GHL is not configured");
+  const unique = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
+  if (!unique.length) return;
+  return ghlJson(config, `/contacts/${contactId}/tags`, {
+    method: "POST",
+    body: JSON.stringify({ tags: unique }),
+  });
+}
+
+export async function updateGhlContactCustomFields(
+  contactId: string,
+  fields: { id: string; field_value: string }[],
+) {
+  const config = getGhlConfig();
+  if (!config) throw new Error("GHL is not configured");
+  return ghlJson(config, `/contacts/${contactId}`, {
+    method: "PUT",
+    body: JSON.stringify({ customFields: fields }),
+  });
+}
+
+export async function searchGhlOpportunitiesForContact(contactId: string) {
+  const config = getGhlConfig();
+  if (!config || !contactId.trim()) return [];
+  const raw = await ghlJson<{
+    opportunities?: {
+      id?: string;
+      pipelineId?: string;
+      pipelineStageId?: string;
+    }[];
+  }>(config, "/opportunities/search", {
+    query: {
+      location_id: config.locationId,
+      contact_id: contactId.trim(),
+    },
+  });
+  return raw.opportunities || [];
+}
+
+export async function moveGhlOpportunityToUnqualified(
+  contactId: string,
+  contactName?: string,
+) {
+  const config = getGhlConfig();
+  if (!config) throw new Error("GHL is not configured");
+  const opps = await searchGhlOpportunitiesForContact(contactId);
+  const primary = opps[0];
+  const target = await findUnqualifiedStage(primary?.pipelineId);
+  if (!target) {
+    throw new Error("No Unqualified pipeline stage found in GHL");
+  }
+  if (
+    primary?.id &&
+    primary.pipelineId === target.pipelineId &&
+    primary.pipelineStageId === target.stageId
+  ) {
+    return { opportunityId: primary.id, ...target, already: true as const };
+  }
+  if (primary?.id) {
+    await ghlJson(config, `/opportunities/${primary.id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        pipelineId: target.pipelineId,
+        pipelineStageId: target.stageId,
+      }),
+    });
+    return { opportunityId: primary.id, ...target };
+  }
+  const created = await ghlJson<{
+    opportunity?: { id?: string };
+    id?: string;
+  }>(config, "/opportunities/", {
+    method: "POST",
+    body: JSON.stringify({
+      locationId: config.locationId,
+      contactId,
+      name: contactName?.trim() || "Maya lead",
+      pipelineId: target.pipelineId,
+      pipelineStageId: target.stageId,
+      status: "open",
+    }),
+  });
+  return {
+    opportunityId: created.opportunity?.id || created.id,
+    ...target,
+  };
+}
+
+export async function setGhlOpportunityStageField(
+  contactId: string,
+  value: string,
+) {
+  if (!KNOWN_FIELDS.opportunityStage) return;
+  await updateGhlContactCustomFields(contactId, [
+    { id: KNOWN_FIELDS.opportunityStage, field_value: value },
+  ]);
+}
