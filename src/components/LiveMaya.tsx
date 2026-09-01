@@ -336,7 +336,9 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       speakMayaLine(
         data.pending
           ? "I need a parent email to send the calendar invite — what's the best address?"
-          : "I wasn't able to put that on the calendar just now. Let's pick another open time, or you can book online.",
+          : typeof data.parentReply === "string" && data.parentReply
+            ? data.parentReply
+            : "I wasn't able to put that on the calendar just now. Let's pick another open time, or you can book online.",
       );
     } catch {
       speakMayaLine(

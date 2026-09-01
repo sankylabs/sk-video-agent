@@ -291,9 +291,14 @@ If they confirmed a time that matches${
   const toBook = extractBookMarkers(content);
   const booked: string[] = [];
   const bookErrors: string[] = [];
+  let fallbackReply: string | undefined;
 
   async function recordBook(start: string) {
-    const result = await commitLeadBooking(lead, start, { email: parentEmail });
+    const result = await commitLeadBooking(lead, start, {
+      email: parentEmail,
+      channel: "chat",
+      requestedText: userText,
+    });
     if (result.ok) {
       booked.push(result.booking.label || start);
       if (lead) {
@@ -309,6 +314,9 @@ If they confirmed a time that matches${
       }
     } else {
       bookErrors.push(result.error);
+      if (result.staffNotified && result.parentReply) {
+        fallbackReply = result.parentReply;
+      }
     }
     return result;
   }
@@ -366,7 +374,15 @@ If they confirmed a time that matches${
 
   content = stripBookMarkers(content);
 
-  if (!booked.length && claimsCalendarBooking(content)) {
+  if (!booked.length && fallbackReply) {
+    content = content
+      .replace(/\s*I('ve| have)? (reserved|booked)[^.!?]*[.!?]?/gi, " ")
+      .replace(/\s*(it'?s|that'?s) (reserved|booked|on (our )?calendar)[^.!?]*[.!?]?/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    content = `${content} ${fallbackReply}`.trim();
+    console.error("[chat] booking failed; staff notified", bookErrors);
+  } else if (!booked.length && claimsCalendarBooking(content)) {
     content = content
       .replace(/\s*I('ve| have)? (reserved|booked)[^.!?]*[.!?]?/gi, " ")
       .replace(/\s*(it'?s|that'?s) (reserved|booked|on (our )?calendar)[^.!?]*[.!?]?/gi, " ")
@@ -379,7 +395,7 @@ If they confirmed a time that matches${
   }
 
   const offeredSlots = (() => {
-    if (booked.length) return [];
+    if (booked.length || fallbackReply) return [];
     if (pickedStart && !bookErrors.length) return [];
     if (isStaffTalkRequest(userText) || isStaffOutreachConfirm(userText, priorAssistant)) {
       return [];

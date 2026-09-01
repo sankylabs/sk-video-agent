@@ -216,6 +216,58 @@ async function sendViaResend(email: {
   return { sent: true as const, via: "resend" as const };
 }
 
+async function sendKirklandStaffEmail(input: {
+  subject: string;
+  text: string;
+  html: string;
+  lead?: Lead | null;
+  leadNote?: string;
+}) {
+  const errors: string[] = [];
+  const resend = await sendViaResend({
+    to: siteConfig.email,
+    subject: input.subject,
+    text: input.text,
+    html: input.html,
+  }).catch((err: unknown) => ({
+    sent: false as const,
+    reason: err instanceof Error ? err.message : "resend failed",
+  }));
+  if (!resend.sent && resend.reason !== "no-resend-key") {
+    errors.push(resend.reason);
+  }
+
+  let ghlEmailSent = false;
+  try {
+    const staff = await upsertGhlContact({
+      name: siteConfig.brand,
+      email: siteConfig.email,
+      requireEmail: true,
+    });
+    await sendGhlEmail({
+      contactId: staff.contactId,
+      to: siteConfig.email,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    });
+    ghlEmailSent = true;
+  } catch (err) {
+    errors.push(err instanceof Error ? err.message : "ghl email failed");
+  }
+
+  const leadContactId = input.lead?.ghlContactId || input.lead?.id;
+  if (leadContactId && input.leadNote) {
+    try {
+      await createGhlContactNote(leadContactId, input.leadNote);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : "ghl note failed");
+    }
+  }
+
+  return { sent: resend.sent || ghlEmailSent, errors };
+}
+
 export async function sendStaffOutreach(input: StaffOutreachInput) {
   const lead = input.lead;
   if (lead?.staffOutreachAt) {
@@ -230,50 +282,14 @@ export async function sendStaffOutreach(input: StaffOutreachInput) {
   }
 
   const email = buildStaffOutreachEmail(input);
-  const errors: string[] = [];
+  const { sent, errors } = await sendKirklandStaffEmail({
+    subject: email.subject,
+    text: email.text,
+    html: email.html,
+    lead,
+    leadNote: `Maya: parent asked for a team member to reach out (${input.channel}). ${email.text}`,
+  });
 
-  const resend = await sendViaResend(email).catch((err: unknown) => ({
-    sent: false as const,
-    reason: err instanceof Error ? err.message : "resend failed",
-  }));
-  if (resend.sent) {
-    /* keep going so GHL still gets a note */
-  } else if (resend.reason !== "no-resend-key") {
-    errors.push(resend.reason);
-  }
-
-  let ghlEmailSent = false;
-  try {
-    const staff = await upsertGhlContact({
-      name: siteConfig.brand,
-      email: siteConfig.email,
-      requireEmail: true,
-    });
-    await sendGhlEmail({
-      contactId: staff.contactId,
-      to: siteConfig.email,
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
-    });
-    ghlEmailSent = true;
-  } catch (err) {
-    errors.push(err instanceof Error ? err.message : "ghl email failed");
-  }
-
-  const leadContactId = lead?.ghlContactId || lead?.id;
-  if (leadContactId) {
-    try {
-      await createGhlContactNote(
-        leadContactId,
-        `Maya: parent asked for a team member to reach out (${input.channel}). ${email.text}`,
-      );
-    } catch (err) {
-      errors.push(err instanceof Error ? err.message : "ghl note failed");
-    }
-  }
-
-  const sent = resend.sent || ghlEmailSent;
   if (lead?.id) {
     await updateLead(lead.id, {
       staffOutreachAt: new Date().toISOString(),
@@ -290,4 +306,174 @@ export async function sendStaffOutreach(input: StaffOutreachInput) {
   }
 
   return { ok: true as const, duplicate: false, parentReply: email.parentReply };
+}
+
+export type BookingFallbackInput = {
+  lead?: Lead | null;
+  channel: OutreachChannel;
+  start?: string;
+  spoken?: string;
+  error?: string;
+  requestedText?: string;
+};
+
+export function bookingFallbackParentReply(spoken: string) {
+  return `I wasn't able to put ${spoken} on the calendar automatically, so I've asked the Steamoji Kirkland team to make that appointment for you. They'll confirm. You can also call us at ${siteConfig.phone}.`;
+}
+
+export function buildBookingFallbackEmail(input: BookingFallbackInput) {
+  const lead = input.lead;
+  const parentName = lead?.name?.trim() || "a parent";
+  const spoken =
+    input.spoken?.trim() ||
+    input.start?.trim() ||
+    input.requestedText?.trim() ||
+    "a requested time";
+  const channelLabel = input.channel === "video" ? "live video" : "text chat";
+  const when = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date());
+  const chatId = lead?.ghlContactId || lead?.id;
+  const chatUrl = chatId ? `${appBaseUrl()}/chat/${chatId}` : appBaseUrl();
+  const kids = childLines(lead);
+  const notes = [lead?.notes, lead?.crmNotes].filter(Boolean).join(" · ");
+
+  const subject = `Maya: please book a trial for ${parentName} — ${spoken}`;
+
+  const text = [
+    `Maya could not create this free-session appointment in GHL. Please book it on the Kirkland calendar for this contact.`,
+    "",
+    `Requested time: ${spoken}`,
+    input.start ? `Slot id: ${input.start}` : null,
+    input.requestedText ? `What they said: ${input.requestedText}` : null,
+    input.error ? `Maya error: ${input.error}` : null,
+    "",
+    `When Maya asked: ${when}`,
+    `Channel: ${channelLabel}`,
+    field("Parent", lead?.name),
+    field("Email", lead?.email),
+    field("Phone", lead?.phone),
+    kids.text,
+    field("Location", lead?.location || lead?.city || lead?.resideKirkland),
+    field("GHL contact", lead?.ghlContactId),
+    field("Maya chat", chatUrl),
+    notes ? field("Notes", notes) : null,
+    "",
+    `Academy line: ${siteConfig.phone}`,
+  ]
+    .filter((line) => line != null)
+    .join("\n");
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f7f6f2;font-family:Arial,Helvetica,sans-serif;color:#1e2060;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f6f2;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e4e2da;">
+          <tr>
+            <td style="background:#2f3386;color:#ffffff;padding:20px 24px;">
+              <p style="margin:0;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.85;">Maya · ${htmlEscape(siteConfig.personaTitle)}</p>
+              <h1 style="margin:8px 0 0;font-size:22px;line-height:1.3;font-weight:700;">Please book this free session in GHL</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">
+                Maya could not write the appointment automatically. Please <strong>create this trial on the calendar</strong> for the contact below.
+              </p>
+              <p style="margin:0 0 16px;padding:12px 14px;background:#f7f6f2;border-radius:10px;font-size:18px;font-weight:700;">
+                ${htmlEscape(spoken)}
+              </p>
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;line-height:1.45;border-collapse:collapse;">
+                ${input.start ? `<tr><th align="left" style="width:140px;color:#5c5a70;font-weight:600;">Slot id</th><td>${htmlEscape(input.start)}</td></tr>` : ""}
+                <tr><th align="left" style="width:140px;color:#5c5a70;font-weight:600;">When asked</th><td>${htmlEscape(when)}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Channel</th><td>${htmlEscape(channelLabel)}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Parent</th><td>${htmlEscape(lead?.name || "—")}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Email</th><td>${lead?.email ? `<a href="mailto:${htmlEscape(lead.email)}">${htmlEscape(lead.email)}</a>` : "—"}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Phone</th><td>${lead?.phone ? `<a href="tel:${htmlEscape(lead.phone)}">${htmlEscape(lead.phone)}</a>` : "—"}</td></tr>
+                ${kids.html}
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Location</th><td>${htmlEscape(lead?.location || lead?.city || lead?.resideKirkland || "—")}</td></tr>
+                <tr><th align="left" style="color:#5c5a70;font-weight:600;">Maya chat</th><td><a href="${htmlEscape(chatUrl)}">${htmlEscape(chatUrl)}</a></td></tr>
+                ${lead?.ghlContactId ? `<tr><th align="left" style="color:#5c5a70;font-weight:600;">GHL contact</th><td>${htmlEscape(lead.ghlContactId)}</td></tr>` : ""}
+                ${notes ? `<tr><th align="left" style="color:#5c5a70;font-weight:600;">Notes</th><td>${htmlEscape(notes)}</td></tr>` : ""}
+                ${input.error ? `<tr><th align="left" style="color:#5c5a70;font-weight:600;">Maya error</th><td>${htmlEscape(input.error)}</td></tr>` : ""}
+                ${input.requestedText ? `<tr><th align="left" style="color:#5c5a70;font-weight:600;">What they said</th><td>${htmlEscape(input.requestedText)}</td></tr>` : ""}
+              </table>
+              <p style="margin:20px 0 0;font-size:13px;color:#5c5a70;">Academy line: ${htmlEscape(siteConfig.phone)}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return {
+    to: siteConfig.email,
+    subject,
+    text,
+    html,
+    spoken,
+    parentReply: bookingFallbackParentReply(spoken),
+  };
+}
+
+export async function sendBookingFallback(input: BookingFallbackInput) {
+  const lead = input.lead;
+  const startKey = (input.start || input.requestedText || "unparsed").trim();
+  if (lead?.bookingFallbackAt && lead.bookingFallbackStart === startKey) {
+    const then = Date.parse(lead.bookingFallbackAt);
+    if (Number.isFinite(then) && Date.now() - then < DUPLICATE_WINDOW_MS) {
+      const spoken =
+        input.spoken?.trim() || input.start?.trim() || "that time";
+      return {
+        ok: true as const,
+        duplicate: true,
+        spoken,
+        parentReply: bookingFallbackParentReply(spoken),
+      };
+    }
+  }
+
+  const email = buildBookingFallbackEmail(input);
+  const { sent, errors } = await sendKirklandStaffEmail({
+    subject: email.subject,
+    text: email.text,
+    html: email.html,
+    lead,
+    leadNote: `Maya: GHL booking failed; asked staff to create trial for ${email.spoken}. ${email.text}`,
+  });
+
+  if (sent && lead?.id) {
+    await updateLead(lead.id, {
+      bookingFallbackAt: new Date().toISOString(),
+      bookingFallbackStart: startKey,
+    }).catch(() => undefined);
+  }
+
+  if (!sent) {
+    console.error("[book-fallback] email did not send", errors);
+    return {
+      ok: false as const,
+      spoken: email.spoken,
+      parentReply: `I wasn't able to put that on the calendar just now — please call us at ${siteConfig.phone} or email ${siteConfig.email}.`,
+      errors,
+    };
+  }
+
+  return {
+    ok: true as const,
+    duplicate: false,
+    spoken: email.spoken,
+    parentReply: email.parentReply,
+  };
 }

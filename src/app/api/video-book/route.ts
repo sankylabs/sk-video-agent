@@ -7,6 +7,7 @@ import {
 import { claimsCalendarBooking, extractBookMarkers } from "@/lib/chat-actions";
 import { getLead } from "@/lib/leads";
 import { hydrateLeadMemory } from "@/lib/memory";
+import { sendBookingFallback } from "@/lib/staff-outreach-mail";
 
 const bodySchema = z.object({
   leadId: z.string().optional(),
@@ -36,18 +37,33 @@ export async function POST(req: Request) {
 
   const start = await resolveBookStartFromSpeech([replicaText, userText]);
   if (!start) {
+    const fallback = await sendBookingFallback({
+      lead,
+      channel: "video",
+      requestedText: [replicaText, userText].filter(Boolean).join("\n"),
+      error: "Could not match an open slot from that confirmation.",
+    });
     return NextResponse.json({
       ok: false,
       error: "Could not match an open slot from that confirmation.",
+      staffNotified: fallback.ok,
+      parentReply: fallback.parentReply,
+      spoken: fallback.spoken,
     });
   }
 
-  const result = await commitLeadBooking(lead, start);
+  const result = await commitLeadBooking(lead, start, {
+    channel: "video",
+    requestedText: [userText, replicaText].filter(Boolean).join("\n"),
+  });
   if (!result.ok) {
     return NextResponse.json({
       ok: false,
       error: result.error,
       pending: result.pending,
+      staffNotified: result.staffNotified,
+      parentReply: result.parentReply,
+      spoken: result.spoken,
     });
   }
 

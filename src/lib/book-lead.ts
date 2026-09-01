@@ -1,9 +1,14 @@
 import { extractBookMarkers } from "./chat-actions";
 import { type Lead, updateLead } from "./leads";
+import { spokenTrialTime } from "./memory";
 import {
   EMAIL_NEEDED_FOR_BOOKING,
   isValidParentEmail,
 } from "./qualify";
+import {
+  sendBookingFallback,
+  type OutreachChannel,
+} from "./staff-outreach-mail";
 import {
   answerAvailabilityQuestion,
   bookSlot,
@@ -12,7 +17,14 @@ import {
 
 export type LeadBookResult =
   | { ok: true; booking: BookingRecord }
-  | { ok: false; error: string; pending?: boolean };
+  | {
+      ok: false;
+      error: string;
+      pending?: boolean;
+      staffNotified?: boolean;
+      parentReply?: string;
+      spoken?: string;
+    };
 
 export async function resolveBookStartFromSpeech(texts: string[]) {
   const combined = texts.filter((t) => t?.trim()).join("\n");
@@ -26,14 +38,15 @@ export async function resolveBookStartFromSpeech(texts: string[]) {
 export async function commitLeadBooking(
   lead: Lead | null,
   start: string,
-  opts?: { email?: string },
+  opts?: { email?: string; channel?: OutreachChannel; requestedText?: string },
 ): Promise<LeadBookResult> {
   const email = (opts?.email || lead?.email)?.trim();
+  const spoken = spokenTrialTime(start);
   if (!isValidParentEmail(email)) {
     if (lead?.id) {
       await updateLead(lead.id, { pendingBookStart: start });
     }
-    return { ok: false, error: EMAIL_NEEDED_FOR_BOOKING, pending: true };
+    return { ok: false, error: EMAIL_NEEDED_FOR_BOOKING, pending: true, spoken };
   }
 
   const result = await bookSlot(start, {
@@ -53,7 +66,21 @@ export async function commitLeadBooking(
 
   if (!result.ok) {
     console.error("[book] bookSlot failed", start, result.error);
-    return result;
+    const fallback = await sendBookingFallback({
+      lead,
+      channel: opts?.channel || "chat",
+      start,
+      spoken,
+      error: result.error,
+      requestedText: opts?.requestedText,
+    });
+    return {
+      ok: false,
+      error: result.error,
+      staffNotified: fallback.ok,
+      parentReply: fallback.parentReply,
+      spoken: fallback.spoken || spoken,
+    };
   }
 
   if (lead?.id) {

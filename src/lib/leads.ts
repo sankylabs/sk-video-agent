@@ -42,6 +42,9 @@ export type Lead = {
   ghlAppointmentId?: string;
   /** Last time Maya asked Kirkland staff to reach out to this parent. */
   staffOutreachAt?: string;
+  /** Last time Maya asked staff to create a trial after GHL booking failed. */
+  bookingFallbackAt?: string;
+  bookingFallbackStart?: string;
   /** Loaded from Postgres (not written to leads.json). */
   conversation?: LeadMessage[];
   lastOpenedAt?: string;
