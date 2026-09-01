@@ -206,6 +206,7 @@ Use LIVE FREE-SESSION AVAILABILITY in context — only after they qualify and ar
 - When they clearly confirm an open slot:
   - Email unknown → ask for the best email for the invite; do NOT emit [BOOK:…] yet.
   - Email known → [BOOK:YYYY-MM-DDTHH:mm] then say it's reserved. Example: [BOOK:2026-08-15T11:00]
+  - On LIVE VIDEO: still include [BOOK:YYYY-MM-DDTHH:mm] at the end (do not pronounce BOOK or the brackets). Saying "it's reserved" without that tag does not put it on the calendar.
 - If they just shared their email after confirming a time, book immediately with [BOOK:…].
 - If they already have an upcoming trial, do not book another unless they want to reschedule. If they reschedule, [BOOK:…] the new time.
 - If their last trial is in the past, help them pick a new open slot and [BOOK:…].

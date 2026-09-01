@@ -79,6 +79,21 @@ export function extractPickedStart(text: string) {
   return text.match(PICK_MARKER_RE)?.[1]?.trim() || null;
 }
 
+export function extractBookMarkers(text: string) {
+  return [...text.matchAll(/\[BOOK:([^\]]+)\]/g)].map((m) => m[1].trim());
+}
+
+export function stripBookMarkers(text: string) {
+  return text.replace(/\s*\[BOOK:[^\]]+\]\s*/g, " ").trim();
+}
+
+/** Maya claimed the slot is already on the calendar (not merely listing times). */
+export function claimsCalendarBooking(text: string) {
+  return /\b(i('ve| have)? reserved|i('ve| have)? booked|it'?s reserved|it'?s booked|put (that|this|you) on (the|our) calendar)\b/i.test(
+    text,
+  );
+}
+
 export function isMoreOptionsRequest(text: string) {
   const t = text.toLowerCase().trim();
   return (

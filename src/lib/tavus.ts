@@ -17,7 +17,7 @@ export const STOCK_FEMALE_FACE_ID = "r9d30b0e55ac";
 export const STOCK_SALES_PAL_ID = "pcb7a34da5fe";
 
 /** Bump when PAL layers / face / interrupt settings change so we refresh cached PAL. */
-const PAL_CONFIG_VERSION = 25;
+const PAL_CONFIG_VERSION = 26;
 
 type LeadLike = {
   name?: string;
@@ -287,6 +287,7 @@ ${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
 If they want a human / staff / "who can I talk to": offer that someone from the Steamoji Kirkland team can reach out. Say they can also call ${siteConfig.phone}. Do not invent a staff name. Never say [OFFER_REACH_OUT] or [REACH_OUT] out loud.
 
 ## LIVE FREE-SESSION AVAILABILITY (use for booking only when trial-ready)
+When they confirm an open slot and parent email is known, end your reply with [BOOK:YYYY-MM-DDTHH:mm] (do not pronounce BOOK or the brackets). The app uses that tag to write the GHL appointment — spoken confirmation alone does not book.
 ${brief}
 
 ## LIVE KIRKLAND CAMPS (use when they ask about camps)

@@ -264,6 +264,7 @@ export async function bookSlot(
       return { ok: true, booking };
     } catch (err) {
       const message = err instanceof Error ? err.message : "GHL booking failed";
+      console.error("[schedule] GHL booking failed", normalized, message);
       return { ok: false, error: message };
     }
   }

@@ -20,8 +20,10 @@ import {
 import { siteConfig, trialUrl } from "@/lib/config";
 import { mayaGreeting } from "@/lib/greeting";
 import {
+  claimsCalendarBooking,
   encodeReachOutPick,
   encodeSlotPick,
+  extractBookMarkers,
   extractPickedStart,
   extractSlotOptions,
   MORE_OPTIONS_TEXT,
@@ -183,6 +185,9 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const [staffOutreachBusy, setStaffOutreachBusy] = useState(false);
   const offerStaffOutreachRef = useRef(false);
   const staffOutreachSentRef = useRef(false);
+  const lastUserSpeechRef = useRef("");
+  const videoBookedStartsRef = useRef(new Set<string>());
+  const videoBookBusyRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -306,6 +311,39 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       );
     } finally {
       setStaffOutreachBusy(false);
+    }
+  }
+
+  async function requestVideoBook(replicaText: string) {
+    if (videoBookBusyRef.current) return;
+    videoBookBusyRef.current = true;
+    try {
+      const res = await fetch("/api/video-book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: lead?.id,
+          userText: lastUserSpeechRef.current,
+          replicaText,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.ok && typeof data.booking?.start === "string") {
+        videoBookedStartsRef.current.add(data.booking.start);
+        return;
+      }
+      if (data.skipped) return;
+      speakMayaLine(
+        data.pending
+          ? "I need a parent email to send the calendar invite — what's the best address?"
+          : "I wasn't able to put that on the calendar just now. Let's pick another open time, or you can book online.",
+      );
+    } catch {
+      speakMayaLine(
+        "I wasn't able to put that on the calendar just now. Let's pick another open time, or you can book online.",
+      );
+    } finally {
+      videoBookBusyRef.current = false;
     }
   }
 
@@ -534,8 +572,22 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     if (isParentStartedSpeaking(ev.data)) {
       noteParentSpeech();
     }
-    if (staffOutreachSentRef.current) return;
     const userSpeech = extractUserSpeech(ev.data);
+    if (userSpeech) {
+      lastUserSpeechRef.current = userSpeech;
+    }
+    const replicaSpeech = extractReplicaSpeech(ev.data);
+    if (
+      replicaSpeech &&
+      (extractBookMarkers(replicaSpeech).length > 0 ||
+        claimsCalendarBooking(replicaSpeech))
+    ) {
+      const tagged = extractBookMarkers(replicaSpeech)[0];
+      if (!tagged || !videoBookedStartsRef.current.has(tagged)) {
+        void requestVideoBook(replicaSpeech);
+      }
+    }
+    if (staffOutreachSentRef.current) return;
     if (userSpeech) {
       if (isStaffTalkRequest(userSpeech)) {
         setOfferReachOut(true);
@@ -548,7 +600,6 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
         void requestVideoOutreach();
       }
     }
-    const replicaSpeech = extractReplicaSpeech(ev.data);
     if (replicaSpeech && replicaOfferedStaffOutreach(replicaSpeech)) {
       setOfferReachOut(true);
     }
@@ -713,6 +764,9 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     setOfferReachOut(false);
     staffOutreachSentRef.current = false;
     setStaffOutreachSent(false);
+    lastUserSpeechRef.current = "";
+    videoBookedStartsRef.current = new Set();
+    videoBookBusyRef.current = false;
     setPhase("lobby");
   }
 

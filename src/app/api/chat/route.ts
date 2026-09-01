@@ -26,14 +26,18 @@ import {
   ensureServicesImageMarker,
   isServicesQuestion,
 } from "@/lib/services";
+import { commitLeadBooking, resolveBookStartFromSpeech } from "@/lib/book-lead";
 import {
+  claimsCalendarBooking,
   collectShownSlotStarts,
   ensureMoreSlotsMarker,
   ensureOfferReachOutMarker,
   ensureSlotMarkers,
+  extractBookMarkers,
   extractPickedStart,
   isMoreOptionsRequest,
   slotsOfferedInText,
+  stripBookMarkers,
 } from "@/lib/chat-actions";
 import { sendStaffOutreach } from "@/lib/staff-outreach-mail";
 import {
@@ -42,7 +46,6 @@ import {
 } from "@/lib/staff-outreach";
 import {
   answerAvailabilityQuestion,
-  bookSlot,
   buildAvailabilityBrief,
   isAvailabilityQuestion,
 } from "@/lib/schedule";
@@ -58,15 +61,6 @@ const bodySchema = z.object({
     .max(40),
   leadId: z.string().optional(),
 });
-
-function stripBookMarkers(text: string) {
-  return text.replace(/\s*\[BOOK:[^\]]+\]\s*/g, " ").trim();
-}
-
-function extractBookMarkers(text: string) {
-  const matches = [...text.matchAll(/\[BOOK:([^\]]+)\]/g)];
-  return matches.map((m) => m[1].trim());
-}
 
 function ensureAskForEmail(text: string) {
   const cleaned = stripBookMarkers(text).trim();
@@ -297,56 +291,21 @@ If they confirmed a time that matches${
   const toBook = extractBookMarkers(content);
   const booked: string[] = [];
   const bookErrors: string[] = [];
-  const bookMeta = {
-    name: lead?.name,
-    email: parentEmail,
-    phone: lead?.phone,
-    childName: lead?.childName,
-    childAge: lead?.childAge,
-    childName2: lead?.childName2,
-    childAge2: lead?.childAge2,
-    childName3: lead?.childName3,
-    childAge3: lead?.childAge3,
-    leadId: lead?.ghlContactId || lead?.id,
-    ghlContactId: lead?.ghlContactId || lead?.id,
-    previousAppointmentId: lead?.ghlAppointmentId,
-  };
 
   async function recordBook(start: string) {
-    if (!isValidParentEmail(parentEmail)) {
-      if (lead?.id) {
-        lead =
-          (await updateLead(lead.id, { pendingBookStart: start })) ?? lead;
-      }
-      bookErrors.push(EMAIL_NEEDED_FOR_BOOKING);
-      return {
-        ok: false as const,
-        error: EMAIL_NEEDED_FOR_BOOKING,
-      };
-    }
-
-    const result = await bookSlot(start, bookMeta);
+    const result = await commitLeadBooking(lead, start, { email: parentEmail });
     if (result.ok) {
       booked.push(result.booking.label || start);
-      if (lead?.id) {
-        const patch: {
-          ghlContactId?: string;
-          pendingBookStart?: string;
-          bookedStart?: string;
-          bookedLabel?: string;
-          ghlAppointmentId?: string;
-        } = {
+      if (lead) {
+        lead = {
+          ...lead,
           pendingBookStart: undefined,
           bookedStart: result.booking.start,
           bookedLabel: result.booking.label,
+          ghlContactId: result.booking.ghlContactId || lead.ghlContactId,
+          ghlAppointmentId:
+            result.booking.ghlAppointmentId || lead.ghlAppointmentId,
         };
-        if (result.booking.ghlContactId) {
-          patch.ghlContactId = result.booking.ghlContactId;
-        }
-        if (result.booking.ghlAppointmentId) {
-          patch.ghlAppointmentId = result.booking.ghlAppointmentId;
-        }
-        lead = (await updateLead(lead.id, patch)) ?? lead;
       }
     } else {
       bookErrors.push(result.error);
@@ -388,15 +347,40 @@ If they confirmed a time that matches${
   ) {
     const hit = calendarLookup.exact[0];
     const result = await recordBook(hit.start);
-    if (result.ok && !/reserved|booked|on (our )?calendar/i.test(content)) {
+    if (result.ok && !claimsCalendarBooking(content)) {
       content = `${content} I've reserved ${result.booking.label || hit.start} on our calendar.`;
+    }
+  }
+
+  // Model said it's reserved without [BOOK:] / a tap — still try to write GHL.
+  if (!booked.length && claimsCalendarBooking(content)) {
+    const inferred = await resolveBookStartFromSpeech([userText, content]);
+    if (
+      inferred &&
+      inferred !== pickedStart &&
+      !toBook.includes(inferred)
+    ) {
+      await recordBook(inferred);
     }
   }
 
   content = stripBookMarkers(content);
 
+  if (!booked.length && claimsCalendarBooking(content)) {
+    content = content
+      .replace(/\s*I('ve| have)? (reserved|booked)[^.!?]*[.!?]?/gi, " ")
+      .replace(/\s*(it'?s|that'?s) (reserved|booked|on (our )?calendar)[^.!?]*[.!?]?/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    content = `${content} I wasn't able to put that on the calendar yet. Tap a time below, or tell me which open slot you want.`.trim();
+    if (bookErrors.length) {
+      console.error("[chat] booking failed", bookErrors);
+    }
+  }
+
   const offeredSlots = (() => {
-    if (booked.length || pickedStart) return [];
+    if (booked.length) return [];
+    if (pickedStart && !bookErrors.length) return [];
     if (isStaffTalkRequest(userText) || isStaffOutreachConfirm(userText, priorAssistant)) {
       return [];
     }
@@ -421,7 +405,7 @@ If they confirmed a time that matches${
     content = ensureAskForEmail(content);
   }
 
-  if (booked.length && !/reserved|booked|on (our )?calendar/i.test(content)) {
+  if (booked.length && !claimsCalendarBooking(content)) {
     content = `${content} I've reserved ${booked.join(", ")} on our calendar.`;
   }
 
