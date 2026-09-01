@@ -21,11 +21,16 @@ import { siteConfig, trialUrl } from "@/lib/config";
 import { mayaGreeting } from "@/lib/greeting";
 import {
   claimsCalendarBooking,
+  claimsCalendarCancel,
   encodeReachOutPick,
   encodeSlotPick,
   extractBookMarkers,
+  extractCancelMarkers,
   extractPickedStart,
   extractSlotOptions,
+  isCancelRequest,
+  isSlotConfirmation,
+  isExistingBookingRecap,
   MORE_OPTIONS_TEXT,
   MORE_SLOTS_MARKER,
   nextQuickQuestions,
@@ -186,6 +191,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const offerStaffOutreachRef = useRef(false);
   const staffOutreachSentRef = useRef(false);
   const lastUserSpeechRef = useRef("");
+  const replicaSpeechRef = useRef("");
   const videoBookedStartsRef = useRef(new Set<string>());
   const videoBookBusyRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -314,7 +320,10 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     }
   }
 
-  async function requestVideoBook(replicaText: string) {
+  async function requestVideoBook(
+    replicaText: string,
+    opts?: { cancel?: boolean },
+  ) {
     if (videoBookBusyRef.current) return;
     videoBookBusyRef.current = true;
     try {
@@ -325,24 +334,33 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
           leadId: lead?.id,
           userText: lastUserSpeechRef.current,
           replicaText,
+          cancel: opts?.cancel || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (data.skipped || data.alreadyBooked) return;
+      if (data.cancelled) {
+        videoBookedStartsRef.current = new Set();
+        return;
+      }
       if (data.ok && typeof data.booking?.start === "string") {
         videoBookedStartsRef.current.add(data.booking.start);
         return;
       }
-      if (data.skipped) return;
       speakMayaLine(
         data.pending
           ? "I need a parent email to send the calendar invite — what's the best address?"
           : typeof data.parentReply === "string" && data.parentReply
             ? data.parentReply
-            : "I wasn't able to put that on the calendar just now. Let's pick another open time, or you can book online.",
+            : opts?.cancel
+              ? "I wasn't able to cancel that on the calendar just now. You can also call us and we'll take care of it."
+              : "I wasn't able to put that on the calendar just now. Let's pick another open time, or you can book online.",
       );
     } catch {
       speakMayaLine(
-        "I wasn't able to put that on the calendar just now. Let's pick another open time, or you can book online.",
+        opts?.cancel
+          ? "I wasn't able to cancel that on the calendar just now. You can also call us and we'll take care of it."
+          : "I wasn't able to put that on the calendar just now. Let's pick another open time, or you can book online.",
       );
     } finally {
       videoBookBusyRef.current = false;
@@ -577,16 +595,34 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     const userSpeech = extractUserSpeech(ev.data);
     if (userSpeech) {
       lastUserSpeechRef.current = userSpeech;
+      if (isCancelRequest(userSpeech) && !isSlotConfirmation(userSpeech)) {
+        void requestVideoBook(replicaSpeechRef.current, { cancel: true });
+      } else if (isSlotConfirmation(userSpeech)) {
+        void requestVideoBook(replicaSpeechRef.current);
+      }
     }
     const replicaSpeech = extractReplicaSpeech(ev.data);
+    if (replicaSpeech) {
+      replicaSpeechRef.current =
+        `${replicaSpeechRef.current} ${replicaSpeech}`.trim().slice(-2000);
+    }
     if (
       replicaSpeech &&
-      (extractBookMarkers(replicaSpeech).length > 0 ||
-        claimsCalendarBooking(replicaSpeech))
+      !isExistingBookingRecap(replicaSpeech)
     ) {
-      const tagged = extractBookMarkers(replicaSpeech)[0];
-      if (!tagged || !videoBookedStartsRef.current.has(tagged)) {
-        void requestVideoBook(replicaSpeech);
+      if (
+        extractCancelMarkers(replicaSpeech).length > 0 ||
+        claimsCalendarCancel(replicaSpeech)
+      ) {
+        void requestVideoBook(replicaSpeech, { cancel: true });
+      } else if (
+        extractBookMarkers(replicaSpeech).length > 0 ||
+        claimsCalendarBooking(replicaSpeech)
+      ) {
+        const tagged = extractBookMarkers(replicaSpeech)[0];
+        if (!tagged || !videoBookedStartsRef.current.has(tagged)) {
+          void requestVideoBook(replicaSpeech);
+        }
       }
     }
     if (staffOutreachSentRef.current) return;
@@ -732,10 +768,25 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     }
   }
 
-  function startRehearsal() {
+  async function startRehearsal() {
     void destroyCall();
     setError(null);
     setActiveConversation(null);
+    if (lead?.id) {
+      try {
+        const res = await fetch(
+          `/api/session?leadId=${encodeURIComponent(lead.id)}`,
+        );
+        const data = await res.json();
+        if (Array.isArray(data.messages) && data.messages.length) {
+          setMessages(data.messages);
+          setPhase("rehearsal");
+          return;
+        }
+      } catch {
+        /* fall through to local messages */
+      }
+    }
     setMessages((prev) =>
       prev.length
         ? prev
@@ -767,6 +818,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     staffOutreachSentRef.current = false;
     setStaffOutreachSent(false);
     lastUserSpeechRef.current = "";
+    replicaSpeechRef.current = "";
     videoBookedStartsRef.current = new Set();
     videoBookBusyRef.current = false;
     setPhase("lobby");

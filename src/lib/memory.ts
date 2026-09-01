@@ -222,7 +222,27 @@ export async function hydrateLeadMemory(lead: Lead): Promise<Lead> {
 }
 
 function isWelcomeBack(content: string) {
-  return /welcome back/i.test(content);
+  return (
+    /welcome back/i.test(content) ||
+    /nice to see you again/i.test(content) ||
+    /you'?re all set for the free trial/i.test(content) ||
+    /your last trial was/i.test(content)
+  );
+}
+
+function transcriptKnowsBooking(
+  messages: LeadMessage[],
+  booking: BookingStatus,
+) {
+  if (booking.state === "none") return true;
+  const spoken = booking.spoken?.trim();
+  const start = booking.start?.trim();
+  return messages.some((m) => {
+    if (m.role !== "assistant") return false;
+    if (spoken && m.content.includes(spoken)) return true;
+    if (start && m.content.includes(start)) return true;
+    return false;
+  });
 }
 
 /** Load the lead, restore transcript + booking, and add a welcome-back if they returned later. */
@@ -252,32 +272,42 @@ export async function openLeadSession(leadId?: string): Promise<OpenLeadSession>
   const hasHistory = stored.length > 0 || booking.state !== "none";
   const lastOpen = lead.lastOpenedAt ? Date.parse(lead.lastOpenedAt) : 0;
   const stale = !lastOpen || Date.now() - lastOpen > WELCOME_BACK_MS;
-  const lastWasWelcome = stored.length
-    ? isWelcomeBack(stored[stored.length - 1]?.content || "")
-    : false;
+  const returningLine = mayaReturningGreeting(lead, booking);
 
   let messages: LeadMessage[];
+  let persistTranscript = stored.length > 0 || booking.state !== "none";
+
   if (stored.length) {
     messages = [...stored];
+    const last = messages[messages.length - 1];
+    const lastWelcome =
+      last?.role === "assistant" && isWelcomeBack(last.content || "");
+    if (!transcriptKnowsBooking(messages, booking)) {
+      if (lastWelcome) {
+        messages = [
+          ...messages.slice(0, -1),
+          { role: "assistant", content: returningLine },
+        ];
+      } else {
+        messages = trimConversation([
+          ...messages,
+          { role: "assistant", content: returningLine },
+        ]);
+      }
+    } else if (stale && !lastWelcome) {
+      const lastContent = last?.content;
+      if (lastContent !== returningLine) {
+        messages = trimConversation([
+          ...messages,
+          { role: "assistant", content: returningLine },
+        ]);
+      }
+    }
   } else if (booking.state !== "none") {
-    messages = [
-      { role: "assistant", content: mayaReturningGreeting(lead, booking) },
-    ];
+    messages = [{ role: "assistant", content: returningLine }];
   } else {
     messages = [{ role: "assistant", content: mayaGreeting(lead) }];
-  }
-
-  let persistTranscript = stored.length > 0 || booking.state !== "none";
-  if (stored.length && stale && !lastWasWelcome) {
-    const returningLine = mayaReturningGreeting(lead, booking);
-    const last = messages[messages.length - 1];
-    if (!last || last.content !== returningLine) {
-      messages = trimConversation([
-        ...messages,
-        { role: "assistant", content: returningLine },
-      ]);
-      persistTranscript = true;
-    }
+    persistTranscript = false;
   }
 
   const returning = hasHistory;
@@ -310,8 +340,9 @@ export function memoryPromptBlock(opts: {
   if (booking.state === "upcoming") {
     lines.push(
       `BOOKING STATUS: UPCOMING free trial on ${booking.spoken} (${booking.start}).`,
-      "They already booked. Do NOT push another trial. Ask if there's anything else, or help reschedule if they say the time no longer works.",
-      "To reschedule: confirm a new open slot, then [BOOK:YYYY-MM-DDTHH:mm] (the system replaces the old appointment).",
+      "They already booked. Do NOT push another trial. Ask if there's anything else, or help reschedule / cancel if they say the time no longer works.",
+      "To reschedule: confirm a new open slot, then [BOOK:YYYY-MM-DDTHH:mm] for the NEW time (the system replaces the old appointment).",
+      "To cancel: include [CANCEL:] once and confirm it is off the calendar. Do not pronounce CANCEL or the brackets.",
     );
   } else if (booking.state === "past") {
     const ghl = (booking.ghlStatus || "unknown").toLowerCase();

@@ -11,7 +11,11 @@ import {
 } from "./ghl";
 import { isValidParentEmail } from "./qualify";
 import { buildTrialSubject } from "./trial-subject";
-import { isMoreOptionsRequest } from "./chat-actions";
+import {
+  hasSpokenClock,
+  isMoreOptionsRequest,
+  isRescheduleRequest,
+} from "./chat-actions";
 
 export const EMAIL_REQUIRED_BOOKING_ERROR =
   "A parent email is required to book this free session. Please share your email so we can send the calendar invite.";
@@ -121,6 +125,7 @@ export type BookingRecord = {
   previousAppointmentId?: string;
   source?: "ghl" | "local";
   createdAt: string;
+  cancelledAt?: string;
 };
 
 function slotFromGhlIso(iso: string, sessionMinutes: number): FreeSlot {
@@ -153,6 +158,47 @@ async function persistLocalBooking(booking: BookingRecord) {
   await fs.writeFile(bookingsFile, JSON.stringify(existing, null, 2), "utf8");
 }
 
+export async function markLocalBookingCancelled(opts: {
+  ghlAppointmentId?: string;
+  start?: string;
+  leadId?: string;
+}) {
+  const id = opts.ghlAppointmentId?.trim();
+  const start = opts.start?.trim();
+  const leadId = opts.leadId?.trim();
+  if (!id && !start && !leadId) return;
+  let existing: BookingRecord[] = [];
+  try {
+    existing = JSON.parse(await fs.readFile(bookingsFile, "utf8")) as BookingRecord[];
+  } catch {
+    return;
+  }
+  const now = new Date().toISOString();
+  let changed = false;
+  for (const row of existing) {
+    if (row.cancelledAt) continue;
+    const idHit = Boolean(id && row.ghlAppointmentId === id);
+    const startHit = Boolean(
+      start &&
+        row.start === start &&
+        (!leadId || row.leadId === leadId || row.ghlContactId === leadId),
+    );
+    const leadHit = Boolean(
+      !id &&
+        !start &&
+        leadId &&
+        (row.leadId === leadId || row.ghlContactId === leadId),
+    );
+    if (idHit || startHit || leadHit) {
+      row.cancelledAt = now;
+      changed = true;
+    }
+  }
+  if (changed) {
+    await fs.writeFile(bookingsFile, JSON.stringify(existing, null, 2), "utf8");
+  }
+}
+
 async function readAllBookings(): Promise<BookingRecord[]> {
   try {
     return JSON.parse(await fs.readFile(bookingsFile, "utf8")) as BookingRecord[];
@@ -169,7 +215,10 @@ export async function latestBookingForLead(
     [leadId, ...extraIds].map((s) => s.trim()).filter(Boolean),
   );
   const all = (await readAllBookings()).filter(
-    (b) => (b.leadId && ids.has(b.leadId)) || (b.ghlContactId && ids.has(b.ghlContactId)),
+    (b) =>
+      !b.cancelledAt &&
+      ((b.leadId && ids.has(b.leadId)) ||
+        (b.ghlContactId && ids.has(b.ghlContactId))),
   );
   if (!all.length) return null;
   all.sort((a, b) => {
@@ -260,6 +309,10 @@ export async function bookSlot(
         } catch (cancelErr) {
           console.error("[schedule] GHL cancel previous failed", cancelErr);
         }
+        await markLocalBookingCancelled({
+          ghlAppointmentId: meta.previousAppointmentId,
+          leadId: meta.leadId,
+        });
       }
       return { ok: true, booking };
     } catch (err) {
@@ -285,6 +338,12 @@ export async function bookSlot(
     createdAt: new Date().toISOString(),
   };
   await persistLocalBooking(booking);
+  if (meta?.previousAppointmentId) {
+    await markLocalBookingCancelled({
+      ghlAppointmentId: meta.previousAppointmentId,
+      leadId: meta.leadId,
+    });
+  }
   return { ok: true, booking };
 }
 
@@ -530,10 +589,20 @@ export function isAvailabilityQuestion(
     ) &&
     (mentionsDay ||
       hasDate ||
+      hasSpokenClock(t) ||
       /\b(\d{1,2})(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)\b/.test(t) ||
       /\b(earlier|later|morning|afternoon|evening|that one|the first|second)\b/.test(
         t,
       ))
+  ) {
+    return true;
+  }
+
+  if (isRescheduleRequest(t)) return true;
+
+  if (
+    (/\b(let'?s do|lets do)\b/.test(t) || hasSpokenClock(t)) &&
+    (mentionsDay || hasDate || hasSpokenClock(t))
   ) {
     return true;
   }
@@ -673,8 +742,43 @@ export function resolveDateKey(
   return null;
 }
 
+const SPOKEN_HOURS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  noon: 12,
+};
+
+/** "four PM" / "at four" / "noon" → "4pm" so clock regexes can match. */
+function expandSpokenHours(text: string) {
+  return text.replace(
+    /\b(?:(at)\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon)(?:\s+o'?clock)?(?:\s*(a\.?m\.?|p\.?m\.?))?\b/gi,
+    (full, at: string | undefined, word: string, mer?: string) => {
+      const key = word.toLowerCase();
+      const n = SPOKEN_HOURS[key];
+      if (n == null) return full;
+      const hasMer = Boolean(mer);
+      const oclock = /o'?clock/i.test(full);
+      if (!at && !hasMer && !oclock && key !== "noon") return full;
+      let suffix = (mer || "").replace(/\s+/g, "").toLowerCase();
+      if (!suffix && key === "noon") suffix = "pm";
+      if (!suffix) suffix = n === 12 || n <= 7 ? "pm" : "am";
+      return `${n}${suffix}`;
+    },
+  );
+}
+
 export function extractDayTimeHints(text: string, timezone = "America/Los_Angeles") {
-  const t = text.toLowerCase();
+  const t = expandSpokenHours(text.toLowerCase());
   const resolved = resolveDateKey(text, timezone);
   let dayHint = resolved?.dateKey || "";
 

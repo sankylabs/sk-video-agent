@@ -72,11 +72,11 @@ export function extractUserSpeech(data: unknown): string | null {
   ).trim();
   if (!text) return null;
   if (role === "replica" || role === "assistant" || role === "ai") return null;
+  if (eventType.includes("replica")) return null;
   if (
     role === "user" ||
     role === "participant" ||
-    eventType.includes("user") ||
-    eventType === "conversation.utterance"
+    eventType.includes("user")
   ) {
     return text;
   }
@@ -94,12 +94,22 @@ export function extractReplicaSpeech(data: unknown): string | null {
       transcript?: unknown;
     };
   };
+  const eventType = String(event.event_type || "");
   const props = event.properties || {};
   const role = String(props.role || "").toLowerCase();
   const text = String(
     props.speech || props.text || props.transcript || "",
   ).trim();
   if (!text) return null;
-  if (role === "replica" || role === "assistant" || role === "ai") return text;
+  if (role === "user" || role === "participant") return null;
+  if (eventType.includes("user")) return null;
+  if (
+    role === "replica" ||
+    role === "assistant" ||
+    role === "ai" ||
+    eventType.includes("replica")
+  ) {
+    return text;
+  }
   return null;
 }

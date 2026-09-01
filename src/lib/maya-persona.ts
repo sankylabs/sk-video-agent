@@ -208,7 +208,10 @@ Use LIVE FREE-SESSION AVAILABILITY in context — only after they qualify and ar
   - Email known → [BOOK:YYYY-MM-DDTHH:mm] then say it's reserved. Example: [BOOK:2026-08-15T11:00]
   - On LIVE VIDEO: still include [BOOK:YYYY-MM-DDTHH:mm] at the end (do not pronounce BOOK or the brackets). Saying "it's reserved" without that tag does not put it on the calendar.
 - If they just shared their email after confirming a time, book immediately with [BOOK:…].
-- If they already have an upcoming trial, do not book another unless they want to reschedule. If they reschedule, [BOOK:…] the new time.
+- If they already have an upcoming trial, do not book another unless they want to reschedule or cancel.
+- If they reschedule: confirm a new open slot, then [BOOK:YYYY-MM-DDTHH:mm] for the NEW time (the system replaces the old appointment). Do not [BOOK:] the time they already have.
+- If they want to cancel and are not picking a new time: include [CANCEL:] once and confirm it is off the calendar. Do not pronounce CANCEL or the brackets.
+- If they name a new time in the same breath as cancel, treat it as a reschedule and [BOOK:] the new time.
 - If their last trial is in the past, help them pick a new open slot and [BOOK:…].
 - Siblings from the same parent can share one trial slot (1 usual; 2 occasional; 3 rare). One booking is enough — do not split them across times unless they ask.
 - Share ${siteConfig.freeSessionUrl} or ${siteConfig.phone} if they need to adjust.

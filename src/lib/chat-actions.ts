@@ -79,19 +79,121 @@ export function extractPickedStart(text: string) {
   return text.match(PICK_MARKER_RE)?.[1]?.trim() || null;
 }
 
+export const SPOKEN_HOUR_WORD =
+  "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon";
+
 export function extractBookMarkers(text: string) {
   return [...text.matchAll(/\[BOOK:([^\]]+)\]/g)].map((m) => m[1].trim());
 }
 
+export function extractCancelMarkers(text: string) {
+  return [...text.matchAll(/\[CANCEL(?::[^\]]*)?\]/g)].map((m) => m[0]);
+}
+
 export function stripBookMarkers(text: string) {
-  return text.replace(/\s*\[BOOK:[^\]]+\]\s*/g, " ").trim();
+  return text
+    .replace(/\s*\[BOOK:[^\]]+\]\s*/g, " ")
+    .replace(/\s*\[CANCEL(?::[^\]]*)?\]\s*/g, " ")
+    .trim();
+}
+
+/** Digit clock ("4pm") or spoken clock ("four PM", "noon", "at four"). */
+export function hasSpokenClock(text: string) {
+  const t = text.toLowerCase();
+  if (/\b\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)\b/.test(t)) return true;
+  if (/\bnoon\b/.test(t)) return true;
+  const hour = `(${SPOKEN_HOUR_WORD})`;
+  if (new RegExp(`\\b${hour}(\\s+o'?clock)?\\s*(a\\.?m\\.?|p\\.?m\\.?)\\b`).test(t)) {
+    return true;
+  }
+  return new RegExp(`\\bat\\s+${hour}(\\s+o'?clock)?\\b`).test(t);
+}
+
+export function isRescheduleRequest(text: string) {
+  const t = text.toLowerCase().trim();
+  if (!t) return false;
+  return /\b(reschedul\w*|move (it|that|my |the |this )?(appointment|trial|session|booking|time)|change (it|that|the time|my time|the appointment)|different time|another time|new time|switch (it|that|the time))\b/.test(
+    t,
+  );
+}
+
+export function isCancelRequest(text: string) {
+  const t = text.toLowerCase().trim();
+  if (!t) return false;
+  if (extractCancelMarkers(text).length) return true;
+  if (extractPickedStart(text) || extractBookMarkers(text).length) return false;
+  // "cancel that and do Friday at 2pm" is a reschedule
+  if (hasSpokenClock(t) && /\b(instead|to |for |reschedule|move|change|book|do )\b/.test(t)) {
+    return false;
+  }
+  if (/\bif you (need|want|have) to cancel\b/.test(t)) return false;
+  return (
+    /\bcancel(l?ing)?\b/.test(t) ||
+    /\b(call (it|that) off|call off (my |the )?(appointment|trial|session))\b/.test(t)
+  );
+}
+
+/** Maya said she took the appointment off the calendar. */
+export function claimsCalendarCancel(text: string) {
+  if (/\bif you (need|want|have) to cancel\b/i.test(text)) return false;
+  return /\b(i('ve| have)? cancelled|it'?s cancelled|i cancelled (your|the)|took (that|it|you) off (the|our) calendar|removed (that|it|your (trial|appointment)) (from|off))\b/i.test(
+    text,
+  );
 }
 
 /** Maya claimed the slot is already on the calendar (not merely listing times). */
 export function claimsCalendarBooking(text: string) {
-  return /\b(i('ve| have)? reserved|i('ve| have)? booked|it'?s reserved|it'?s booked|put (that|this|you) on (the|our) calendar)\b/i.test(
+  return /\b(i('ve| have)? reserved|i('ve| have)? booked|it'?s reserved|it'?s booked|put (that|this|you) on (the|our) calendar|i('ve| have) you down|got you down|booked you|scheduled you|i'll hold (that|it))\b/i.test(
     text,
   );
+}
+
+/** Opening recap of an appointment that already exists — do not treat as a new book. */
+export function isExistingBookingRecap(text: string) {
+  return (
+    /nice to see you again/i.test(text) ||
+    /you'?re all set for the free trial/i.test(text) ||
+    /your last trial was/i.test(text) ||
+    /anything you'?d like to go over before then/i.test(text)
+  );
+}
+
+/**
+ * Parent is choosing a trial time (not asking what is open).
+ * Used so video/chat can write GHL without waiting for a [BOOK:] tag.
+ */
+export function isSlotConfirmation(text: string) {
+  const t = text.toLowerCase().trim();
+  if (!t) return false;
+  if (extractPickedStart(text) || extractBookMarkers(text).length) return true;
+  const asking =
+    /^(what|which|when|how|do you|can you|are there|is there|any)\b/.test(t) ||
+    /\b(what times?|which times?|any (times?|slots?)|available|availability|what'?s open|openings)\b/.test(
+      t,
+    );
+  if (
+    asking &&
+    !/\b(book|reserve|confirm|schedule|sign me up|i'?ll take)\b/.test(t)
+  ) {
+    return false;
+  }
+  if (
+    /\b(book|reserve|that works|sounds good|i'?ll take|let'?s? do( it| that)?|see you then|put me down|sign me up|that one|go ahead|schedule me)\b/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  if (
+    isRescheduleRequest(t) &&
+    (hasSpokenClock(t) ||
+      /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)\b/.test(
+        t,
+      ))
+  ) {
+    return true;
+  }
+  return hasSpokenClock(t);
 }
 
 export function isMoreOptionsRequest(text: string) {
@@ -128,6 +230,8 @@ export function stripChatMarkers(text: string) {
     .replaceAll(REACH_OUT_MARKER, "")
     .replace(/\[SLOT:[^\]]+\]/g, "")
     .replace(/\[PICK:[^\]]+\]/g, "")
+    .replace(/\[BOOK:[^\]]+\]/g, "")
+    .replace(/\[CANCEL(?::[^\]]*)?\]/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

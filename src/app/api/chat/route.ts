@@ -26,7 +26,7 @@ import {
   ensureServicesImageMarker,
   isServicesQuestion,
 } from "@/lib/services";
-import { commitLeadBooking, resolveBookStartFromSpeech } from "@/lib/book-lead";
+import { commitLeadBooking, commitLeadCancel, resolveBookStartFromSpeech } from "@/lib/book-lead";
 import {
   claimsCalendarBooking,
   collectShownSlotStarts,
@@ -34,8 +34,12 @@ import {
   ensureOfferReachOutMarker,
   ensureSlotMarkers,
   extractBookMarkers,
+  extractCancelMarkers,
   extractPickedStart,
+  isCancelRequest,
   isMoreOptionsRequest,
+  isRescheduleRequest,
+  isSlotConfirmation,
   slotsOfferedInText,
   stripBookMarkers,
 } from "@/lib/chat-actions";
@@ -44,6 +48,7 @@ import {
   isStaffOutreachConfirm,
   isStaffTalkRequest,
 } from "@/lib/staff-outreach";
+import { ghlIsoToLocalStart } from "@/lib/ghl";
 import {
   answerAvailabilityQuestion,
   buildAvailabilityBrief,
@@ -102,10 +107,14 @@ export async function POST(req: Request) {
   const wantsCalendar =
     Boolean(userText) &&
     !pickedStart &&
+    !(isCancelRequest(userText) && !isSlotConfirmation(userText)) &&
     isAvailabilityQuestion(userText, priorAssistant);
   const calendarLookup = wantsCalendar
     ? await answerAvailabilityQuestion(userText, calendarWindow, {
-        excludeStarts: shownStarts,
+        excludeStarts: [
+          ...shownStarts,
+          ...(lead?.bookedStart ? [ghlIsoToLocalStart(lead.bookedStart)] : []),
+        ],
       })
     : null;
   const askingCamps = isCampQuestion(userText);
@@ -185,7 +194,13 @@ ${
         ? `- They asked to talk to a person. Offer that someone from the Steamoji Kirkland team can reach out. In this text reply include [OFFER_REACH_OUT] once. Do not invent a staff name.`
         : isStaffOutreachConfirm(userText, priorAssistant)
           ? `- They accepted a team callback. Confirm someone from the academy will reach out. Include [REACH_OUT] if you haven't.`
-          : ""
+          : isCancelRequest(userText) && !isSlotConfirmation(userText)
+            ? `- They want to CANCEL the upcoming trial. Confirm the cancellation in words and include [CANCEL:] once. Do not emit [BOOK:…] unless they also named a new time.`
+            : isRescheduleRequest(userText) && !isSlotConfirmation(userText)
+              ? `- They want to RESCHEDULE. Offer a few open times from the calendar. Do not [BOOK:…] until they pick a new slot.`
+              : isSlotConfirmation(userText) && lead?.bookedStart
+                ? `- They are picking a new trial time. If it is open and email is known, [BOOK:…] the NEW time (that replaces the old appointment). Do not keep the old slot.`
+                : ""
 }
 
 ## LIVE FREE-SESSION AVAILABILITY (source of truth — use only when trial-ready or they ask availability)
@@ -289,9 +304,15 @@ If they confirmed a time that matches${
   }
 
   const toBook = extractBookMarkers(content);
+  const cancelMarkers = extractCancelMarkers(content);
   const booked: string[] = [];
   const bookErrors: string[] = [];
+  let cancelled = false;
   let fallbackReply: string | undefined;
+  const currentStart = lead?.bookedStart
+    ? ghlIsoToLocalStart(lead.bookedStart)
+    : "";
+  const excludeStarts = currentStart ? [currentStart] : [];
 
   async function recordBook(start: string) {
     const result = await commitLeadBooking(lead, start, {
@@ -316,6 +337,36 @@ If they confirmed a time that matches${
       bookErrors.push(result.error);
       if (result.staffNotified && result.parentReply) {
         fallbackReply = result.parentReply;
+      }
+    }
+    return result;
+  }
+
+  async function recordCancel() {
+    const result = await commitLeadCancel(lead, {
+      channel: "chat",
+      requestedText: userText,
+    });
+    if (result.ok) {
+      cancelled = true;
+      if (lead) {
+        lead = {
+          ...lead,
+          pendingBookStart: undefined,
+          bookedStart: undefined,
+          bookedLabel: undefined,
+          ghlAppointmentId: undefined,
+        };
+      }
+      if (!/\bcancel/i.test(content)) {
+        content = `${content} I've cancelled your free trial on ${result.spoken}.`.trim();
+      }
+    } else {
+      bookErrors.push(result.error);
+      if (result.staffNotified && result.parentReply) {
+        fallbackReply = result.parentReply;
+      } else if (result.error === "No appointment to cancel") {
+        content = `${content} I don't see an upcoming trial on the calendar to cancel.`.trim();
       }
     }
     return result;
@@ -349,7 +400,7 @@ If they confirmed a time that matches${
     !toBook.length &&
     !booked.length &&
     calendarLookup?.exact[0] &&
-    /\b(yes|yeah|yep|book|reserve|that works|sounds good|perfect|confirm)\b/i.test(
+    /\b(yes|yeah|yep|book|reserve|that works|sounds good|perfect|confirm|lets? do)\b/i.test(
       userText,
     )
   ) {
@@ -362,7 +413,9 @@ If they confirmed a time that matches${
 
   // Model said it's reserved without [BOOK:] / a tap — still try to write GHL.
   if (!booked.length && claimsCalendarBooking(content)) {
-    const inferred = await resolveBookStartFromSpeech([userText, content]);
+    const inferred = await resolveBookStartFromSpeech([userText, content], {
+      excludeStarts,
+    });
     if (
       inferred &&
       inferred !== pickedStart &&
@@ -372,17 +425,40 @@ If they confirmed a time that matches${
     }
   }
 
+  // Parent named/confirmed a specific time without a tap or [BOOK:] tag.
+  if (!booked.length && isSlotConfirmation(userText)) {
+    const inferred = await resolveBookStartFromSpeech(
+      [userText, priorAssistant || ""],
+      { excludeStarts },
+    );
+    if (
+      inferred &&
+      inferred !== pickedStart &&
+      !toBook.includes(inferred)
+    ) {
+      await recordBook(inferred);
+    }
+  }
+
+  if (
+    !booked.length &&
+    (cancelMarkers.length > 0 ||
+      (isCancelRequest(userText) && !isSlotConfirmation(userText)))
+  ) {
+    await recordCancel();
+  }
+
   content = stripBookMarkers(content);
 
   if (!booked.length && fallbackReply) {
     content = content
-      .replace(/\s*I('ve| have)? (reserved|booked)[^.!?]*[.!?]?/gi, " ")
-      .replace(/\s*(it'?s|that'?s) (reserved|booked|on (our )?calendar)[^.!?]*[.!?]?/gi, " ")
+      .replace(/\s*I('ve| have)? (reserved|booked|cancelled)[^.!?]*[.!?]?/gi, " ")
+      .replace(/\s*(it'?s|that'?s) (reserved|booked|cancelled|on (our )?calendar)[^.!?]*[.!?]?/gi, " ")
       .replace(/\s+/g, " ")
       .trim();
     content = `${content} ${fallbackReply}`.trim();
     console.error("[chat] booking failed; staff notified", bookErrors);
-  } else if (!booked.length && claimsCalendarBooking(content)) {
+  } else if (!booked.length && !cancelled && claimsCalendarBooking(content)) {
     content = content
       .replace(/\s*I('ve| have)? (reserved|booked)[^.!?]*[.!?]?/gi, " ")
       .replace(/\s*(it'?s|that'?s) (reserved|booked|on (our )?calendar)[^.!?]*[.!?]?/gi, " ")
@@ -395,11 +471,12 @@ If they confirmed a time that matches${
   }
 
   const offeredSlots = (() => {
-    if (booked.length || fallbackReply) return [];
+    if (booked.length || cancelled || fallbackReply) return [];
     if (pickedStart && !bookErrors.length) return [];
     if (isStaffTalkRequest(userText) || isStaffOutreachConfirm(userText, priorAssistant)) {
       return [];
     }
+    if (isCancelRequest(userText) && !isSlotConfirmation(userText)) return [];
     if (moreOptions) return calendarLookup?.matches ?? [];
     const pool = calendarLookup?.matches?.length
       ? calendarLookup.matches
@@ -422,7 +499,11 @@ If they confirmed a time that matches${
   }
 
   if (booked.length && !claimsCalendarBooking(content)) {
-    content = `${content} I've reserved ${booked.join(", ")} on our calendar.`;
+    if (/\bnot available\b/i.test(content)) {
+      content = `I've reserved ${booked.join(", ")} on our calendar.`;
+    } else {
+      content = `${content} I've reserved ${booked.join(", ")} on our calendar.`;
+    }
   }
 
   if (lead?.id) {

@@ -70,7 +70,7 @@ function transcriptSnippet(
     .map((m) => {
       const who = m.role === "user" ? "Parent" : "Maya";
       const body = m.content
-        .replace(/\[(?:SLOT|PICK|BOOK|OFFER_REACH_OUT|REACH_OUT|MORE_SLOTS|SERVICES_IMAGE)[^\]]*\]/g, "")
+        .replace(/\[(?:SLOT|PICK|BOOK|CANCEL|OFFER_REACH_OUT|REACH_OUT|MORE_SLOTS|SERVICES_IMAGE)[^\]]*\]/g, "")
         .replace(/\s+/g, " ")
         .trim();
       return body ? `${who}: ${body}` : "";
@@ -315,9 +315,19 @@ export type BookingFallbackInput = {
   spoken?: string;
   error?: string;
   requestedText?: string;
+  intent?: "book" | "reschedule" | "cancel";
 };
 
-export function bookingFallbackParentReply(spoken: string) {
+export function bookingFallbackParentReply(
+  spoken: string,
+  intent: BookingFallbackInput["intent"] = "book",
+) {
+  if (intent === "cancel") {
+    return `I wasn't able to cancel ${spoken} automatically, so I've asked the Steamoji Kirkland team to take it off the calendar. They'll confirm. You can also call us at ${siteConfig.phone}.`;
+  }
+  if (intent === "reschedule") {
+    return `I wasn't able to move your trial to ${spoken} automatically, so I've asked the Steamoji Kirkland team to update the calendar. They'll confirm. You can also call us at ${siteConfig.phone}.`;
+  }
   return `I wasn't able to put ${spoken} on the calendar automatically, so I've asked the Steamoji Kirkland team to make that appointment for you. They'll confirm. You can also call us at ${siteConfig.phone}.`;
 }
 
@@ -345,10 +355,36 @@ export function buildBookingFallbackEmail(input: BookingFallbackInput) {
   const kids = childLines(lead);
   const notes = [lead?.notes, lead?.crmNotes].filter(Boolean).join(" · ");
 
-  const subject = `Maya: please book a trial for ${parentName} — ${spoken}`;
+  const intent = input.intent || "book";
+  const subjectVerb =
+    intent === "cancel"
+      ? "please cancel a trial"
+      : intent === "reschedule"
+        ? "please reschedule a trial"
+        : "please book a trial";
+  const subject = `Maya: ${subjectVerb} for ${parentName} — ${spoken}`;
+
+  const intro =
+    intent === "cancel"
+      ? `Maya could not cancel this free-session appointment in GHL. Please cancel it on the Kirkland calendar for this contact.`
+      : intent === "reschedule"
+        ? `Maya could not reschedule this free-session appointment in GHL. Please move it on the Kirkland calendar for this contact.`
+        : `Maya could not create this free-session appointment in GHL. Please book it on the Kirkland calendar for this contact.`;
+  const htmlTitle =
+    intent === "cancel"
+      ? "Please cancel this free session in GHL"
+      : intent === "reschedule"
+        ? "Please reschedule this free session in GHL"
+        : "Please book this free session in GHL";
+  const htmlIntro =
+    intent === "cancel"
+      ? `Maya could not cancel the appointment automatically. Please <strong>cancel this trial on the calendar</strong> for the contact below.`
+      : intent === "reschedule"
+        ? `Maya could not update the appointment automatically. Please <strong>move this trial on the calendar</strong> for the contact below.`
+        : `Maya could not write the appointment automatically. Please <strong>create this trial on the calendar</strong> for the contact below.`;
 
   const text = [
-    `Maya could not create this free-session appointment in GHL. Please book it on the Kirkland calendar for this contact.`,
+    intro,
     "",
     `Requested time: ${spoken}`,
     input.start ? `Slot id: ${input.start}` : null,
@@ -381,13 +417,13 @@ export function buildBookingFallbackEmail(input: BookingFallbackInput) {
           <tr>
             <td style="background:#2f3386;color:#ffffff;padding:20px 24px;">
               <p style="margin:0;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.85;">Maya · ${htmlEscape(siteConfig.personaTitle)}</p>
-              <h1 style="margin:8px 0 0;font-size:22px;line-height:1.3;font-weight:700;">Please book this free session in GHL</h1>
+              <h1 style="margin:8px 0 0;font-size:22px;line-height:1.3;font-weight:700;">${htmlEscape(htmlTitle)}</h1>
             </td>
           </tr>
           <tr>
             <td style="padding:24px;">
               <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">
-                Maya could not write the appointment automatically. Please <strong>create this trial on the calendar</strong> for the contact below.
+                ${htmlIntro}
               </p>
               <p style="margin:0 0 16px;padding:12px 14px;background:#f7f6f2;border-radius:10px;font-size:18px;font-weight:700;">
                 ${htmlEscape(spoken)}
@@ -423,13 +459,14 @@ export function buildBookingFallbackEmail(input: BookingFallbackInput) {
     text,
     html,
     spoken,
-    parentReply: bookingFallbackParentReply(spoken),
+    parentReply: bookingFallbackParentReply(spoken, intent),
   };
 }
 
 export async function sendBookingFallback(input: BookingFallbackInput) {
   const lead = input.lead;
-  const startKey = (input.start || input.requestedText || "unparsed").trim();
+  const intent = input.intent || "book";
+  const startKey = `${intent}:${(input.start || input.requestedText || "unparsed").trim()}`;
   if (lead?.bookingFallbackAt && lead.bookingFallbackStart === startKey) {
     const then = Date.parse(lead.bookingFallbackAt);
     if (Number.isFinite(then) && Date.now() - then < DUPLICATE_WINDOW_MS) {
@@ -439,7 +476,7 @@ export async function sendBookingFallback(input: BookingFallbackInput) {
         ok: true as const,
         duplicate: true,
         spoken,
-        parentReply: bookingFallbackParentReply(spoken),
+        parentReply: bookingFallbackParentReply(spoken, intent),
       };
     }
   }
@@ -450,7 +487,7 @@ export async function sendBookingFallback(input: BookingFallbackInput) {
     text: email.text,
     html: email.html,
     lead,
-    leadNote: `Maya: GHL booking failed; asked staff to create trial for ${email.spoken}. ${email.text}`,
+    leadNote: `Maya: GHL ${intent} failed; asked staff to update trial for ${email.spoken}. ${email.text}`,
   });
 
   if (sent && lead?.id) {
