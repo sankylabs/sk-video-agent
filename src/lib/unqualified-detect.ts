@@ -1,4 +1,5 @@
 import { classifyLocation } from "./locations";
+import { looksNurtureTooYoung } from "./nurture-detect";
 import type { QualifyContext } from "./qualify";
 
 export type UnqualifiedReason = "age" | "distance";
@@ -58,13 +59,19 @@ export function detectUnqualified(input: {
   const marker = extractUnqualifiedReason(`${user}\n${replica}`);
   const age = input.qualify.age;
 
-  if (age != null && (age < 5 || age > 14)) {
+  if (age != null && age > 14) {
     return {
       reason: "age",
       detail: `child's age is ${age} (outside 5–14)`,
     };
   }
-  if (marker === "age") {
+  if (age != null && age < 5 && !looksNurtureTooYoung(user, replica)) {
+    return {
+      reason: "age",
+      detail: `child's age is ${age} (outside 5–14)`,
+    };
+  }
+  if (marker === "age" && (age == null || age > 14 || !looksNurtureTooYoung(user, replica))) {
     return {
       reason: "age",
       detail: "child's age is outside 5–14",

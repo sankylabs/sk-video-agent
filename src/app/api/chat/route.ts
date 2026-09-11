@@ -49,6 +49,10 @@ import {
   detectUnqualified,
 } from "@/lib/unqualified";
 import {
+  commitNurtureLead,
+  detectNurture,
+} from "@/lib/nurture";
+import {
   isStaffOutreachConfirm,
   isStaffTalkRequest,
 } from "@/lib/staff-outreach";
@@ -110,6 +114,10 @@ export async function POST(req: Request) {
   });
   const qualifyNow = { ...qualify, age: effectiveAge };
   const unqualFromUser = detectUnqualified({
+    userText,
+    qualify: qualifyNow,
+  });
+  const nurtureFromUser = detectNurture({
     userText,
     qualify: qualifyNow,
   });
@@ -184,7 +192,9 @@ ${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
   }
 - Free-trial ready: ${trialReady ? "YES — may soft-invite trial when they're comfortable" : `NO — ${trialQualifyGap({ ...qualify, age: effectiveAge })}. Do not suggest booking a free trial yet.`}
 ${
-  unqualFromUser
+  nurtureFromUser
+    ? `- They should go to NURTURING (${nurtureFromUser.reason}: ${nurtureFromUser.detail}). Be warm, do not push a trial, and include [NURTURE:${nurtureFromUser.reason}] once (do not pronounce it).`
+    : unqualFromUser
     ? `- They are UNQUALIFIED (${unqualFromUser.reason}: ${unqualFromUser.detail}). Be warm, do not push a Kirkland trial, and include [UNQUALIFIED:${unqualFromUser.reason}] once (do not pronounce it).`
     : ""
 }
@@ -317,12 +327,19 @@ If they confirmed a time that matches${
     content = ensureOfferReachOutMarker(content);
   }
 
-  const unqualHit =
-    detectUnqualified({
+  const nurtureHit =
+    detectNurture({
       userText,
       replicaText: content,
       qualify: qualifyNow,
-    }) || unqualFromUser;
+    }) || nurtureFromUser;
+  const unqualHit = nurtureHit
+    ? null
+    : detectUnqualified({
+        userText,
+        replicaText: content,
+        qualify: qualifyNow,
+      }) || unqualFromUser;
 
   const toBook = extractBookMarkers(content);
   const cancelMarkers = extractCancelMarkers(content);
@@ -393,7 +410,7 @@ If they confirmed a time that matches${
     return result;
   }
 
-  if (!unqualHit) {
+  if (!unqualHit && !nurtureHit) {
     for (const start of toBook) {
       await recordBook(start);
     }
@@ -471,7 +488,19 @@ If they confirmed a time that matches${
     await recordCancel();
   }
 
-  if (unqualHit) {
+  if (nurtureHit) {
+    const marked = await commitNurtureLead(lead, nurtureHit, {
+      channel: "chat",
+    });
+    if (marked.ok && lead) {
+      lead = {
+        ...lead,
+        opportunityStage: "Nurturing",
+        nurturedAt: new Date().toISOString(),
+        nurtureReason: nurtureHit.reason,
+      };
+    }
+  } else if (unqualHit) {
     const marked = await commitUnqualifiedLead(lead, unqualHit, {
       channel: "chat",
       userText,
@@ -514,7 +543,7 @@ If they confirmed a time that matches${
   }
 
   const offeredSlots = (() => {
-    if (booked.length || cancelled || fallbackReply || unqualHit) return [];
+    if (booked.length || cancelled || fallbackReply || unqualHit || nurtureHit) return [];
     if (pickedStart && !bookErrors.length) return [];
     if (isStaffTalkRequest(userText) || isStaffOutreachConfirm(userText, priorAssistant)) {
       return [];

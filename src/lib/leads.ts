@@ -48,6 +48,9 @@ export type Lead = {
   /** Last time Maya marked this lead unqualified in GHL. */
   unqualifiedAt?: string;
   unqualifiedReason?: string;
+  /** Last time Maya moved this lead to Nurturing in GHL. */
+  nurturedAt?: string;
+  nurtureReason?: string;
   /** Loaded from Postgres (not written to leads.json). */
   conversation?: LeadMessage[];
   lastOpenedAt?: string;

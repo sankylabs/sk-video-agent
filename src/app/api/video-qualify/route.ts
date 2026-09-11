@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getLead } from "@/lib/leads";
 import { hydrateLeadMemory } from "@/lib/memory";
 import { inferQualifyContext } from "@/lib/qualify";
+import { commitNurtureLead, detectNurture } from "@/lib/nurture";
 import {
   commitUnqualifiedLead,
   detectUnqualified,
@@ -41,27 +42,38 @@ export async function POST(req: Request) {
     ],
     lead,
   );
-  const hit = detectUnqualified({
+  const nurtureHit = detectNurture({
     userText,
     replicaText,
     qualify,
   });
-  if (!hit) {
+  const unqualHit = nurtureHit
+    ? null
+    : detectUnqualified({
+        userText,
+        replicaText,
+        qualify,
+      });
+  if (!nurtureHit && !unqualHit) {
     return NextResponse.json({ ok: false, skipped: true });
   }
 
-  const result = await commitUnqualifiedLead(lead, hit, {
-    channel: "video",
-    userText,
-    recentMessages: [
-      ...(userText ? [{ role: "user" as const, content: userText }] : []),
-      ...(replicaText
-        ? [{ role: "assistant" as const, content: replicaText }]
-        : []),
-    ],
-  });
+  const result = nurtureHit
+    ? await commitNurtureLead(lead, nurtureHit, { channel: "video" })
+    : await commitUnqualifiedLead(lead, unqualHit!, {
+        channel: "video",
+        userText,
+        recentMessages: [
+          ...(userText ? [{ role: "user" as const, content: userText }] : []),
+          ...(replicaText
+            ? [{ role: "assistant" as const, content: replicaText }]
+            : []),
+        ],
+      });
+  const reason = nurtureHit?.reason || unqualHit?.reason;
   console.info("[video-qualify]", {
-    reason: hit.reason,
+    kind: nurtureHit ? "nurture" : "unqualified",
+    reason,
     duplicate: "duplicate" in result ? result.duplicate : false,
     userText: userText.slice(0, 180),
   });
@@ -69,7 +81,8 @@ export async function POST(req: Request) {
     ok: result.ok,
     skipped: "skipped" in result ? result.skipped : false,
     duplicate: "duplicate" in result ? result.duplicate : false,
-    reason: hit.reason,
+    kind: nurtureHit ? "nurture" : "unqualified",
+    reason,
     error: "error" in result ? result.error : undefined,
   });
 }

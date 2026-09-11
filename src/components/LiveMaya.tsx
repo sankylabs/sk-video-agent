@@ -50,6 +50,11 @@ import {
   isDistanceDecline,
 } from "@/lib/unqualified-detect";
 import {
+  extractNurtureReason,
+  isNotReadyNow,
+  looksNurtureTooYoung,
+} from "@/lib/nurture-detect";
+import {
   SERVICES_IMAGE_MARKER,
   SERVICES_IMAGE_SRC,
 } from "@/lib/services";
@@ -374,7 +379,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   }
 
   async function requestVideoQualify(replicaText: string) {
-    if (videoQualifyBusyRef.current || videoQualifyDoneRef.current) return;
+    if (videoQualifyBusyRef.current) return;
     videoQualifyBusyRef.current = true;
     try {
       const res = await fetch("/api/video-qualify", {
@@ -387,7 +392,11 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.ok && !data.skipped) {
+      if (
+        data.ok &&
+        !data.skipped &&
+        (data.kind === "nurture" || data.reason === "distance")
+      ) {
         videoQualifyDoneRef.current = true;
       }
     } catch {
@@ -640,12 +649,19 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     if (
       userSpeech &&
       (extractUnqualifiedReason(userSpeech) ||
+        extractNurtureReason(userSpeech) ||
         isDistanceDecline(userSpeech) ||
+        isNotReadyNow(userSpeech) ||
+        looksNurtureTooYoung(userSpeech) ||
         (ageFromSpeech != null && (ageFromSpeech < 5 || ageFromSpeech > 14)))
     ) {
       void requestVideoQualify(replicaSpeechRef.current);
     }
-    if (replicaSpeech && extractUnqualifiedReason(replicaSpeech)) {
+    if (
+      replicaSpeech &&
+      (extractUnqualifiedReason(replicaSpeech) ||
+        extractNurtureReason(replicaSpeech))
+    ) {
       void requestVideoQualify(replicaSpeech);
     }
     if (

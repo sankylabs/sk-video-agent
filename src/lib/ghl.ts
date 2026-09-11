@@ -673,34 +673,61 @@ export async function listGhlPipelines(): Promise<GhlPipeline[]> {
   return pipelineCache;
 }
 
-function isUnqualifiedName(name?: string) {
-  return /^unqualified$/i.test((name || "").trim());
+function stageNameIs(name: string | undefined, expected: string) {
+  return new RegExp(`^${expected}$`, "i").test((name || "").trim());
 }
 
-export async function findUnqualifiedStage(currentPipelineId?: string) {
-  const envPipe = process.env.GHL_PIPELINE_ID?.trim();
-  const envStage = process.env.GHL_UNQUALIFIED_STAGE_ID?.trim();
-  if (envPipe && envStage) {
-    return { pipelineId: envPipe, stageId: envStage };
+async function findNamedStage(opts: {
+  stageName: string;
+  pipelineName?: string;
+  currentPipelineId?: string;
+  envPipe?: string;
+  envStage?: string;
+}) {
+  if (opts.envPipe && opts.envStage) {
+    return { pipelineId: opts.envPipe, stageId: opts.envStage };
   }
 
   const pipes = await listGhlPipelines();
-  if (currentPipelineId) {
-    const current = pipes.find((p) => p.id === currentPipelineId);
-    const stage = current?.stages.find((s) => isUnqualifiedName(s.name));
+  if (opts.currentPipelineId) {
+    const current = pipes.find((p) => p.id === opts.currentPipelineId);
+    const stage = current?.stages.find((s) => stageNameIs(s.name, opts.stageName));
     if (current && stage) {
       return { pipelineId: current.id, stageId: stage.id };
     }
   }
-  const named = pipes.find((p) => isUnqualifiedName(p.name));
-  if (named?.stages[0]) {
-    return { pipelineId: named.id, stageId: named.stages[0].id };
+  if (opts.pipelineName) {
+    const pipelineName = opts.pipelineName;
+    const named = pipes.find((p) => stageNameIs(p.name, pipelineName));
+    if (named?.stages[0]) {
+      return { pipelineId: named.id, stageId: named.stages[0].id };
+    }
   }
   for (const pipe of pipes) {
-    const stage = pipe.stages.find((s) => isUnqualifiedName(s.name));
+    const stage = pipe.stages.find((s) => stageNameIs(s.name, opts.stageName));
     if (stage) return { pipelineId: pipe.id, stageId: stage.id };
   }
   return null;
+}
+
+export async function findUnqualifiedStage(currentPipelineId?: string) {
+  return findNamedStage({
+    stageName: "Unqualified",
+    pipelineName: "Unqualified",
+    currentPipelineId,
+    envPipe: process.env.GHL_PIPELINE_ID?.trim(),
+    envStage: process.env.GHL_UNQUALIFIED_STAGE_ID?.trim(),
+  });
+}
+
+export async function findNurturingStage(currentPipelineId?: string) {
+  return findNamedStage({
+    stageName: "Nurturing",
+    pipelineName: "Nurturing",
+    currentPipelineId,
+    envPipe: process.env.GHL_NURTURING_PIPELINE_ID?.trim(),
+    envStage: process.env.GHL_NURTURING_STAGE_ID?.trim(),
+  });
 }
 
 export async function addGhlContactTags(contactId: string, tags: string[]) {
@@ -710,6 +737,17 @@ export async function addGhlContactTags(contactId: string, tags: string[]) {
   if (!unique.length) return;
   return ghlJson(config, `/contacts/${contactId}/tags`, {
     method: "POST",
+    body: JSON.stringify({ tags: unique }),
+  });
+}
+
+export async function removeGhlContactTags(contactId: string, tags: string[]) {
+  const config = getGhlConfig();
+  if (!config) throw new Error("GHL is not configured");
+  const unique = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
+  if (!unique.length) return;
+  return ghlJson(config, `/contacts/${contactId}/tags`, {
+    method: "DELETE",
     body: JSON.stringify({ tags: unique }),
   });
 }
@@ -744,18 +782,20 @@ export async function searchGhlOpportunitiesForContact(contactId: string) {
   return raw.opportunities || [];
 }
 
-export async function moveGhlOpportunityToUnqualified(
+async function moveGhlOpportunityToStage(
   contactId: string,
-  contactName?: string,
+  contactName: string | undefined,
+  findTarget: (
+    currentPipelineId?: string,
+  ) => Promise<{ pipelineId: string; stageId: string } | null>,
+  missingError: string,
 ) {
   const config = getGhlConfig();
   if (!config) throw new Error("GHL is not configured");
   const opps = await searchGhlOpportunitiesForContact(contactId);
   const primary = opps[0];
-  const target = await findUnqualifiedStage(primary?.pipelineId);
-  if (!target) {
-    throw new Error("No Unqualified pipeline stage found in GHL");
-  }
+  const target = await findTarget(primary?.pipelineId);
+  if (!target) throw new Error(missingError);
   if (
     primary?.id &&
     primary.pipelineId === target.pipelineId &&
@@ -791,6 +831,30 @@ export async function moveGhlOpportunityToUnqualified(
     opportunityId: created.opportunity?.id || created.id,
     ...target,
   };
+}
+
+export async function moveGhlOpportunityToUnqualified(
+  contactId: string,
+  contactName?: string,
+) {
+  return moveGhlOpportunityToStage(
+    contactId,
+    contactName,
+    findUnqualifiedStage,
+    "No Unqualified pipeline stage found in GHL",
+  );
+}
+
+export async function moveGhlOpportunityToNurturing(
+  contactId: string,
+  contactName?: string,
+) {
+  return moveGhlOpportunityToStage(
+    contactId,
+    contactName,
+    findNurturingStage,
+    "No Nurturing pipeline stage found in GHL",
+  );
 }
 
 export async function setGhlOpportunityStageField(

@@ -70,7 +70,7 @@ function transcriptSnippet(
     .map((m) => {
       const who = m.role === "user" ? "Parent" : "Maya";
       const body = m.content
-        .replace(/\[(?:SLOT|PICK|BOOK|CANCEL|UNQUALIFIED|OFFER_REACH_OUT|REACH_OUT|MORE_SLOTS|SERVICES_IMAGE)[^\]]*\]/g, "")
+        .replace(/\[(?:SLOT|PICK|BOOK|CANCEL|UNQUALIFIED|NURTURE|OFFER_REACH_OUT|REACH_OUT|MORE_SLOTS|SERVICES_IMAGE)[^\]]*\]/g, "")
         .replace(/\s+/g, " ")
         .trim();
       return body ? `${who}: ${body}` : "";
