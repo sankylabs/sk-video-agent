@@ -10,8 +10,9 @@ import DailyIframe, {
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CALL_ACTIVE_WINDOW_MS,
   CALL_END_AFTER_WRAP_MS,
-  CALL_NUDGE_AT_MS,
+  CALL_IDLE_BEFORE_NUDGE_MS,
   CALL_NUDGE_LINE,
   CALL_WRAP_AFTER_NUDGE_MS,
   CALL_WRAP_LINE,
@@ -171,7 +172,6 @@ function ChatMessageBody({
 const JOIN_TIMEOUT_MS = 45_000;
 const PARENT_AUDIO_LEVEL_THRESHOLD = 0.12;
 const PARENT_AUDIO_STREAK_NEEDED = 3;
-const PARENT_STILL_TALKING_MS = 2_500;
 
 export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const [phase, setPhase] = useState<Phase>("lobby");
@@ -215,6 +215,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const phaseRef = useRef<Phase>("lobby");
   const callWatchStartedRef = useRef(false);
   const lastParentSpeechAtRef = useRef(0);
+  const lastReplicaSpeechAtRef = useRef(0);
   const parentAudioStreakRef = useRef(0);
   const heardAfterNudgeRef = useRef(false);
   const callTimerRefs = useRef<{
@@ -438,6 +439,21 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     }, 150);
   }
 
+  function conversationIsActive() {
+    const now = Date.now();
+    return (
+      now - lastParentSpeechAtRef.current < CALL_ACTIVE_WINDOW_MS ||
+      now - lastReplicaSpeechAtRef.current < CALL_ACTIVE_WINDOW_MS
+    );
+  }
+
+  function parentIdleFor(ms: number) {
+    if (!lastParentSpeechAtRef.current) {
+      return Date.now() - (lastReplicaSpeechAtRef.current || Date.now()) >= ms;
+    }
+    return Date.now() - lastParentSpeechAtRef.current >= ms;
+  }
+
   function cancelWrapUp() {
     heardAfterNudgeRef.current = true;
     if (callTimerRefs.current.wrap) {
@@ -450,27 +466,15 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     }
   }
 
-  function noteParentSpeech() {
-    lastParentSpeechAtRef.current = Date.now();
-    // After the 2-minute check-in has fired (or been skipped), speech keeps the call.
-    if (callWatchStartedRef.current && callTimerRefs.current.nudge === null) {
-      cancelWrapUp();
+  function scheduleIdleNudge() {
+    if (callTimerRefs.current.nudge) {
+      clearTimeout(callTimerRefs.current.nudge);
     }
-  }
-
-  function startCallWatch() {
-    if (callWatchStartedRef.current) return;
-    callWatchStartedRef.current = true;
-    heardAfterNudgeRef.current = false;
-    lastParentSpeechAtRef.current = 0;
-    callRef.current?.startLocalAudioLevelObserver(200).catch(() => undefined);
-
-    const giveNudge = () => {
+    callTimerRefs.current.nudge = setTimeout(() => {
+      callTimerRefs.current.nudge = null;
       if (phaseRef.current !== "live" || !callRef.current) return;
-      const recentlyHeard =
-        Date.now() - lastParentSpeechAtRef.current < PARENT_STILL_TALKING_MS;
-      if (recentlyHeard) {
-        heardAfterNudgeRef.current = true;
+      if (conversationIsActive() || !parentIdleFor(CALL_IDLE_BEFORE_NUDGE_MS)) {
+        scheduleIdleNudge();
         return;
       }
       heardAfterNudgeRef.current = false;
@@ -485,26 +489,28 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
           void leaveCall();
         }, CALL_END_AFTER_WRAP_MS);
       }, CALL_WRAP_AFTER_NUDGE_MS);
-    };
+    }, CALL_IDLE_BEFORE_NUDGE_MS);
+  }
 
-    const waitForParentPause = (attempt: number) => {
-      if (phaseRef.current !== "live" || !callRef.current) return;
-      const parentIsTalking =
-        Date.now() - lastParentSpeechAtRef.current < PARENT_STILL_TALKING_MS;
-      if (parentIsTalking && attempt < 4) {
-        callTimerRefs.current.nudge = setTimeout(
-          () => waitForParentPause(attempt + 1),
-          2000,
-        );
-        return;
-      }
-      callTimerRefs.current.nudge = null;
-      giveNudge();
-    };
+  function noteParentSpeech() {
+    lastParentSpeechAtRef.current = Date.now();
+    if (!callWatchStartedRef.current) return;
+    cancelWrapUp();
+    scheduleIdleNudge();
+  }
 
-    callTimerRefs.current.nudge = setTimeout(() => {
-      waitForParentPause(0);
-    }, CALL_NUDGE_AT_MS);
+  function noteReplicaSpeech() {
+    lastReplicaSpeechAtRef.current = Date.now();
+  }
+
+  function startCallWatch() {
+    if (callWatchStartedRef.current) return;
+    callWatchStartedRef.current = true;
+    heardAfterNudgeRef.current = false;
+    lastParentSpeechAtRef.current = 0;
+    lastReplicaSpeechAtRef.current = Date.now();
+    callRef.current?.startLocalAudioLevelObserver(200).catch(() => undefined);
+    scheduleIdleNudge();
   }
 
   function clearMediaElements() {
@@ -642,6 +648,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     }
     const replicaSpeech = extractReplicaSpeech(ev.data);
     if (replicaSpeech) {
+      noteReplicaSpeech();
       replicaSpeechRef.current =
         `${replicaSpeechRef.current} ${replicaSpeech}`.trim().slice(-2000);
     }

@@ -1,14 +1,17 @@
-/** Hard cap for live video, in seconds (`max_call_duration`). */
-export const CALL_MAX_DURATION_SEC = 180;
+/** Safety cap for live video, in seconds (`max_call_duration`). */
+export const CALL_MAX_DURATION_SEC = 720;
 
-/** Elapsed time after join before the continue check-in. */
-export const CALL_NUDGE_AT_MS = 120_000;
+/** Parent must be quiet this long before the still-there check-in. */
+export const CALL_IDLE_BEFORE_NUDGE_MS = 45_000;
 
 /** How long to wait after the nudge before wrapping up. */
 export const CALL_WRAP_AFTER_NUDGE_MS = 40_000;
 
 /** Let Maya finish the wrap-up line before hanging up. */
 export const CALL_END_AFTER_WRAP_MS = 12_000;
+
+/** Parent or Maya spoke this recently → do not interrupt with a check-in. */
+export const CALL_ACTIVE_WINDOW_MS = 8_000;
 
 export const CALL_NUDGE_LINE =
   "Just checking you're still there — would you like to keep going?";
@@ -18,7 +21,7 @@ export const CALL_WRAP_LINE =
 
 export function tavusMaxCallDurationSec() {
   const fromEnv = Number(process.env.TAVUS_MAX_DURATION);
-  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  if (Number.isFinite(fromEnv) && fromEnv >= CALL_MAX_DURATION_SEC) return fromEnv;
   return CALL_MAX_DURATION_SEC;
 }
 
