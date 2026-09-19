@@ -1,16 +1,16 @@
-/** Safety cap for live video, in seconds (`max_call_duration`). */
-export const CALL_MAX_DURATION_SEC = 720;
+/** Last-resort Tavus cap (seconds). Idle hangup is silence-based; this is only if a tab is left open. */
+export const CALL_MAX_DURATION_SEC = 7_200;
 
-/** Parent must be quiet this long before the still-there check-in. */
-export const CALL_IDLE_BEFORE_NUDGE_MS = 45_000;
+/** Warn after this much silence (parent and Maya both quiet). */
+export const CALL_IDLE_BEFORE_NUDGE_MS = 90_000;
 
-/** How long to wait after the nudge before wrapping up. */
-export const CALL_WRAP_AFTER_NUDGE_MS = 40_000;
+/** Hang up 30s after the warning if still silent (2 minutes of no talking). */
+export const CALL_WRAP_AFTER_NUDGE_MS = 30_000;
 
 /** Let Maya finish the wrap-up line before hanging up. */
 export const CALL_END_AFTER_WRAP_MS = 12_000;
 
-/** Parent or Maya spoke this recently → do not interrupt with a check-in. */
+/** Someone spoke this recently → do not interrupt with a check-in. */
 export const CALL_ACTIVE_WINDOW_MS = 8_000;
 
 export const CALL_NUDGE_LINE =

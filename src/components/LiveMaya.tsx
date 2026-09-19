@@ -292,6 +292,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     heardAfterNudgeRef.current = false;
     parentAudioStreakRef.current = 0;
     lastParentSpeechAtRef.current = 0;
+    lastReplicaSpeechAtRef.current = 0;
   }
 
   function setOfferReachOut(next: boolean) {
@@ -447,11 +448,21 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     );
   }
 
-  function parentIdleFor(ms: number) {
-    if (!lastParentSpeechAtRef.current) {
-      return Date.now() - (lastReplicaSpeechAtRef.current || Date.now()) >= ms;
-    }
-    return Date.now() - lastParentSpeechAtRef.current >= ms;
+  function lastTalkAt() {
+    return Math.max(
+      lastParentSpeechAtRef.current,
+      lastReplicaSpeechAtRef.current,
+    );
+  }
+
+  function roomIdleFor(ms: number) {
+    const since = lastTalkAt();
+    if (!since) return true;
+    return Date.now() - since >= ms;
+  }
+
+  function wrapUpPending() {
+    return Boolean(callTimerRefs.current.wrap || callTimerRefs.current.end);
   }
 
   function cancelWrapUp() {
@@ -473,7 +484,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     callTimerRefs.current.nudge = setTimeout(() => {
       callTimerRefs.current.nudge = null;
       if (phaseRef.current !== "live" || !callRef.current) return;
-      if (conversationIsActive() || !parentIdleFor(CALL_IDLE_BEFORE_NUDGE_MS)) {
+      if (conversationIsActive() || !roomIdleFor(CALL_IDLE_BEFORE_NUDGE_MS)) {
         scheduleIdleNudge();
         return;
       }
@@ -501,6 +512,8 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
 
   function noteReplicaSpeech() {
     lastReplicaSpeechAtRef.current = Date.now();
+    if (!callWatchStartedRef.current || wrapUpPending()) return;
+    scheduleIdleNudge();
   }
 
   function startCallWatch() {

@@ -17,7 +17,7 @@ export const STOCK_FEMALE_FACE_ID = "r9d30b0e55ac";
 export const STOCK_SALES_PAL_ID = "pcb7a34da5fe";
 
 /** Bump when PAL layers / face / interrupt settings change so we refresh cached PAL. */
-const PAL_CONFIG_VERSION = 30;
+const PAL_CONFIG_VERSION = 31;
 
 type LeadLike = {
   name?: string;
@@ -63,7 +63,7 @@ const conversationalFlowLayer = {
   replica_interruptibility: "high",
   /** Unused by sparrow-2; kept if a fallback PAL still runs sparrow-1. */
   voice_isolation: "near",
-  idle_engagement: "medium",
+  idle_engagement: "low",
 };
 
 export function normalizeApiKey(key: string) {
@@ -271,7 +271,7 @@ Stay on Steamoji Kirkland / kids STEM education — if they go off-topic, steer 
   } Keep them comfortable; answer what they ask without repeatedly inviting more questions; only then soft-invite trial and offer mixed open times from the availability list (not Saturday-only).
 
 ## CALL LENGTH
-Do not announce a time limit unless they ask. If a still-there check-in is spoken for you after a long quiet stretch, wait for them — if they reply, continue normally. Do not invent your own "are you still there?" while you are already talking.
+There is no time limit while they are talking. Stay with them as long as they are engaged. Do not announce a time limit unless they ask. If a still-there check-in is spoken for you after a long quiet stretch, wait for them — if they reply, continue normally. Do not invent your own "are you still there?" while you are already talking.
 
 ## KNOWN QUALIFICATION SO FAR
 - Child age: ${qualify.age != null ? String(qualify.age) : "UNKNOWN"}
@@ -303,7 +303,7 @@ ${campsBrief}
     properties: {
       max_call_duration: tavusMaxCallDurationSec(),
       participant_left_timeout: 45,
-      participant_absent_timeout: 180,
+      participant_absent_timeout: 120,
       language: "english",
     },
   };
