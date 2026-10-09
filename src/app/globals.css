@@ -453,8 +453,7 @@ a {
   margin: 2.6rem 0 1.15rem;
 }
 
-.home-section-head h2,
-.home-maya-copy h2 {
+.home-section-head h2 {
   margin: 0;
   font-family: var(--font-display), sans-serif;
   font-size: clamp(1.55rem, 3.6vw, 2.15rem);
@@ -498,59 +497,6 @@ a {
   margin: 0;
   color: var(--muted);
   line-height: 1.5;
-}
-
-.home-maya {
-  display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: 1.5rem;
-  align-items: stretch;
-  margin: 2.4rem auto 0;
-  padding: 0.7rem;
-  border-radius: 1.4rem;
-  border: 1px solid var(--line);
-  background: var(--brand-white);
-  box-shadow: 0 16px 40px rgba(30, 32, 96, 0.08);
-}
-
-.home-maya-photo {
-  position: relative;
-  min-height: 280px;
-  border-radius: 1.05rem;
-  overflow: hidden;
-  background: #1a1b3a;
-}
-
-.home-maya-photo img {
-  object-fit: cover;
-  object-position: 50% 18%;
-}
-
-.home-maya-copy {
-  display: grid;
-  align-content: center;
-  gap: 0.7rem;
-  padding: 0.6rem 1.1rem 0.8rem 0.4rem;
-}
-
-.home-maya-copy > p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.55;
-  max-width: 48ch;
-}
-
-.home-maya-note {
-  padding: 0.85rem 0.95rem;
-  border-radius: 0.85rem;
-  background: var(--brand-cream);
-  border: 1px dashed rgba(47, 51, 134, 0.22);
-  color: var(--brand-ink) !important;
-}
-
-.home-maya-note code {
-  font-size: 0.92em;
-  color: var(--brand-blue);
 }
 
 .home .showcase-videos {
@@ -1774,8 +1720,7 @@ button:disabled {
   }
 
   .home-hero-inner,
-  .home-feature-grid,
-  .home-maya {
+  .home-feature-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1814,10 +1759,6 @@ button:disabled {
   .home-bar-cta {
     padding: 0.5rem 0.8rem;
     font-size: 0.82rem;
-  }
-
-  .home-maya-copy {
-    padding: 0.35rem 0.55rem 0.7rem;
   }
 
   .home-foot-links {

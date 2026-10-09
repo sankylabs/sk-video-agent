@@ -120,30 +120,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="home-wrap home-maya" aria-labelledby="home-maya-heading">
-          <div className="home-maya-photo">
-            <Image
-              src="/maya-r9d30b0e55ac.jpg"
-              alt="Maya, Steamoji Kirkland’s AI enrollment advisor"
-              fill
-              sizes="(max-width: 860px) 100vw, 420px"
-            />
-          </div>
-          <div className="home-maya-copy">
-            <p className="home-kicker home-kicker-dark">Talk with Maya</p>
-            <h2 id="home-maya-heading">Your AI enrollment advisor</h2>
-            <p>
-              Maya helps Kirkland families figure out fit — ages, schedule, and
-              what the academy is actually like — then points you to a free
-              session when you’re ready.
-            </p>
-            <p className="home-maya-note">
-              Use the personal link from your text or email. It looks like{" "}
-              <code>/chat/your-id</code>.
-            </p>
-          </div>
-        </section>
-
         <div className="home-wrap">
           <SteamojiVideos />
         </div>
