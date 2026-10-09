@@ -107,7 +107,7 @@ export default function HomePage() {
         <section className="home-wrap home-features" aria-labelledby="home-features-heading">
           <div className="home-section-head">
             <p className="home-kicker home-kicker-dark">Why families stay</p>
-            <h2 id="home-features-heading">Making they love. Proof you can see.</h2>
+            <h2 id="home-features-heading">Making what they love. Proof you can see.</h2>
           </div>
           <div className="home-feature-grid">
             {FEATURES.map((feature) => (
