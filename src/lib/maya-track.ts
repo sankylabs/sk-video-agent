@@ -433,8 +433,43 @@ export async function recordMayaAction(input: {
   });
 }
 
+export async function resetMayaReport() {
+  if (!isConversationDbEnabled()) {
+    await writeFileStore({
+      sessions: [],
+      turns: [],
+      actions: [],
+      backfilled: true,
+    });
+    return { sessions: 0, turns: 0, actions: 0, conversations: 0 };
+  }
+  await ensureTables();
+  const counts = await withDb(async (client) => {
+    await client.query(`
+      TRUNCATE TABLE
+        maya_session_turns,
+        maya_session_actions,
+        maya_sessions,
+        maya_conversations
+    `);
+    const res = await client.query<{
+      sessions: number;
+      turns: number;
+      actions: number;
+      conversations: number;
+    }>(`
+      SELECT
+        (SELECT COUNT(*)::int FROM maya_sessions) AS sessions,
+        (SELECT COUNT(*)::int FROM maya_session_turns) AS turns,
+        (SELECT COUNT(*)::int FROM maya_session_actions) AS actions,
+        (SELECT COUNT(*)::int FROM maya_conversations) AS conversations
+    `);
+    return res.rows[0];
+  });
+  return counts || { sessions: 0, turns: 0, actions: 0, conversations: 0 };
+}
+
 export async function listMayaSessions(opts?: { since?: string }) {
-  await backfillFromConversations();
   if (!isConversationDbEnabled()) {
     const store = await readFileStore();
     const since = opts?.since ? Date.parse(opts.since) : 0;
@@ -618,7 +653,6 @@ function inferredActions(lead: Lead | null): MayaAction[] {
 }
 
 export async function getMayaLeadReport(contactId: string) {
-  await backfillFromConversations();
   const id = contactId.trim();
   const sessions = (await listMayaSessions()).filter((s) => s.contactId === id);
   const turns = await turnsForSessions(sessions.map((s) => s.id));
