@@ -1,15 +1,10 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { siteConfig } from "./config";
-import { buildCampsBrief } from "./camps";
 import { buildMayaSystemPrompt } from "./maya-persona";
-import { mayaGreeting, mayaReturningGreeting } from "./greeting";
-import { resolveBookingStatus } from "./memory";
 import { getTavusApiKey } from "./runtime-secrets";
-import { buildAvailabilityBrief } from "./schedule";
-import { inferQualifyContext, isTrialQualified, isValidParentEmail, trialQualifyGap } from "./qualify";
-import { locationSessionNote } from "./locations";
 import { tavusMaxCallDurationSec } from "./call-timeout";
+import { buildVideoSessionContext } from "./video-session";
 
 /** Default Maya face (Tavus face / replica id). */
 export const STOCK_FEMALE_FACE_ID = "r9d30b0e55ac";
@@ -17,7 +12,7 @@ export const STOCK_FEMALE_FACE_ID = "r9d30b0e55ac";
 export const STOCK_SALES_PAL_ID = "pcb7a34da5fe";
 
 /** Bump when PAL layers / face / interrupt settings change so we refresh cached PAL. */
-const PAL_CONFIG_VERSION = 31;
+const PAL_CONFIG_VERSION = 35;
 
 type LeadLike = {
   name?: string;
@@ -242,59 +237,7 @@ async function tryCreateConversation(payload: Record<string, unknown>) {
 
 export async function createLivingConversation(lead?: LeadLike | null) {
   const { palId, faceId } = await ensureMayaPal();
-  const booking = await resolveBookingStatus(lead ?? {});
-  const returning =
-    Boolean(lead?.conversation?.length) || booking.state !== "none";
-  const greeting = returning
-    ? mayaReturningGreeting(lead ?? undefined, booking)
-    : mayaGreeting(lead ?? undefined);
-  const { brief } = await buildAvailabilityBrief(10);
-  const qualify = inferQualifyContext(lead?.conversation ?? [], lead ?? null);
-  const campsBrief = await buildCampsBrief(qualify.age);
-  const emailKnown = isValidParentEmail(qualify.email || lead?.email);
-  const context = `${buildMayaSystemPrompt(
-    {
-      ...(lead ?? {}),
-      ghlStatus: booking.ghlStatus,
-      bookedStart: booking.start || lead?.bookedStart,
-      bookedLabel: booking.label || lead?.bookedLabel,
-      ghlAppointmentId: booking.ghlAppointmentId || lead?.ghlAppointmentId,
-    },
-    { returning },
-  )}
-
-## SESSION GOAL
-Stay on Steamoji Kirkland / kids STEM education — if they go off-topic, steer back without answering it. ${
-    returning
-      ? "Continue the prior conversation on this chat link. Do not restart qualification. Honor booking status (upcoming vs past / reschedule)."
-      : "Qualify (age 5–14 + where they live) before suggesting a free trial. If they name a city with another Steamoji, mention that academy once and let them choose Kirkland or the closer site."
-  } Keep them comfortable; answer what they ask without repeatedly inviting more questions; only then soft-invite trial and offer mixed open times from the availability list (not Saturday-only).
-
-## CALL LENGTH
-There is no time limit while they are talking. Stay with them as long as they are engaged. Do not announce a time limit unless they ask. If a still-there check-in is spoken for you after a long quiet stretch, wait for them — if they reply, continue normally. Do not invent your own "are you still there?" while you are already talking.
-
-## KNOWN QUALIFICATION SO FAR
-- Child age: ${qualify.age != null ? String(qualify.age) : "UNKNOWN"}
-${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
-- Parent email: ${
-    emailKnown
-      ? `KNOWN (${qualify.email || lead?.email}) — do not re-ask`
-      : "UNKNOWN — required before booking; ask when they confirm a slot"
-  }
-- Free-trial ready: ${isTrialQualified(qualify) ? "YES" : `NO — ${trialQualifyGap(qualify)}`}
-
-## Talking to a person
-If they want a human / staff / "who can I talk to": offer that someone from the Steamoji Kirkland team can reach out. Say they can also call ${siteConfig.phone}. Do not invent a staff name. Never say [OFFER_REACH_OUT] or [REACH_OUT] out loud.
-
-## LIVE FREE-SESSION AVAILABILITY (use for booking only when trial-ready)
-When they confirm an open slot and parent email is known, end your reply with [BOOK:YYYY-MM-DDTHH:mm] (do not pronounce BOOK or the brackets). The app uses that tag to write the GHL appointment — spoken confirmation alone does not book.
-If they already have an upcoming trial and want a different time, [BOOK:] the NEW slot (that replaces the old one). If they want to cancel without a new time, end with [CANCEL:] (do not pronounce CANCEL or the brackets).
-If the child is over 14, end with [UNQUALIFIED:age]. If the child is under 5 and they want to come later / stay in touch, end with [NURTURE:too-young] instead. If they are a Kirkland-area fit and not ready now, end with [NURTURE:later]. If they are outside Kirkland and say it is too far / they will use a closer Steamoji, end with [UNQUALIFIED:distance]. Do not pronounce those tags.
-${brief}
-
-## LIVE KIRKLAND CAMPS (use when they ask about camps)
-${campsBrief}
-`;
+  const { context, greeting } = await buildVideoSessionContext(lead ?? null);
 
   const shared = {
     conversation_name: `${siteConfig.brand} — ${siteConfig.personaName}`,

@@ -42,6 +42,7 @@ import {
 import {
   extractReplicaSpeech,
   extractUserSpeech,
+  isBirthdayInquiry,
   isStaffOutreachConfirm,
   isStaffTalkRequest,
   replicaOfferedStaffOutreach,
@@ -300,7 +301,10 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     setOfferStaffOutreach(next);
   }
 
-  async function requestVideoOutreach() {
+  async function requestVideoOutreach(opts?: {
+    silent?: boolean;
+    kind?: "callback" | "birthday";
+  }) {
     if (staffOutreachSentRef.current || staffOutreachBusy) return;
     staffOutreachSentRef.current = true;
     setStaffOutreachBusy(true);
@@ -312,21 +316,24 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
         body: JSON.stringify({
           leadId: lead?.id,
           channel: "video",
-          userText: REACH_OUT_BUTTON,
+          userText: lastUserSpeechRef.current || REACH_OUT_BUTTON,
+          kind: opts?.kind,
         }),
       });
       const data = await res.json().catch(() => ({}));
       setStaffOutreachSent(true);
+      if (opts?.silent) return;
       speakMayaLine(
         typeof data.content === "string" && data.content
           ? data.content
-          : `I'll have someone from the Steamoji Kirkland team reach out to you. You can also call us now at ${siteConfig.phone}.`,
+          : `Sure — our academy can reach out, or you can call ${siteConfig.phone} right away.`,
       );
     } catch {
       staffOutreachSentRef.current = false;
       setOfferReachOut(true);
+      if (opts?.silent) return;
       speakMayaLine(
-        `I wasn't able to notify the team just now — please call us at ${siteConfig.phone}.`,
+        `I wasn't able to notify our academy just now — please call us at ${siteConfig.phone}.`,
       );
     } finally {
       setStaffOutreachBusy(false);
@@ -704,20 +711,25 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       }
     }
     if (staffOutreachSentRef.current) return;
-    if (userSpeech) {
-      if (isStaffTalkRequest(userSpeech)) {
-        setOfferReachOut(true);
-      } else if (
-        offerStaffOutreachRef.current &&
-        (isStaffOutreachConfirm(userSpeech) ||
-          /^(yes|yeah|yep|please|sure|ok|okay)\b/i.test(userSpeech.trim()) &&
-            userSpeech.trim().length < 40)
-      ) {
-        void requestVideoOutreach();
-      }
+    if (userSpeech && isBirthdayInquiry(userSpeech)) {
+      void requestVideoOutreach({ silent: true, kind: "birthday" });
+      return;
+    }
+    if (userSpeech && isStaffTalkRequest(userSpeech)) {
+      void requestVideoOutreach({ silent: true });
+      return;
+    }
+    if (
+      userSpeech &&
+      offerStaffOutreachRef.current &&
+      (isStaffOutreachConfirm(userSpeech) ||
+        /^(yes|yeah|yep|please|sure|ok|okay)\b/i.test(userSpeech.trim()) &&
+          userSpeech.trim().length < 40)
+    ) {
+      void requestVideoOutreach();
     }
     if (replicaSpeech && replicaOfferedStaffOutreach(replicaSpeech)) {
-      setOfferReachOut(true);
+      void requestVideoOutreach({ silent: true });
     }
   };
 

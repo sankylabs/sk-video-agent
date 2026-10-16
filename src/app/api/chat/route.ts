@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { z } from "zod";
 import { buildCampsBrief, isCampQuestion } from "@/lib/camps";
+import { siteConfig } from "@/lib/config";
 import { demoReply } from "@/lib/demo-replies";
 import { parseChildAge } from "@/lib/greeting";
 import { buildMayaSystemPrompt } from "@/lib/maya-persona";
@@ -31,7 +32,6 @@ import {
   claimsCalendarBooking,
   collectShownSlotStarts,
   ensureMoreSlotsMarker,
-  ensureOfferReachOutMarker,
   ensureSlotMarkers,
   extractBookMarkers,
   extractCancelMarkers,
@@ -40,6 +40,7 @@ import {
   isMoreOptionsRequest,
   isRescheduleRequest,
   isSlotConfirmation,
+  isTrialMonthQuestion,
   slotsOfferedInText,
   stripBookMarkers,
 } from "@/lib/chat-actions";
@@ -53,6 +54,7 @@ import {
   detectNurture,
 } from "@/lib/nurture";
 import {
+  isBirthdayInquiry,
   isStaffOutreachConfirm,
   isStaffTalkRequest,
 } from "@/lib/staff-outreach";
@@ -124,6 +126,7 @@ export async function POST(req: Request) {
   const wantsCalendar =
     Boolean(userText) &&
     !pickedStart &&
+    !isTrialMonthQuestion(userText) &&
     !(isCancelRequest(userText) && !isSlotConfirmation(userText)) &&
     isAvailabilityQuestion(userText, priorAssistant);
   const calendarLookup = wantsCalendar
@@ -172,7 +175,7 @@ Stay on Steamoji Kirkland / kids STEM education — if they go off-topic, steer 
             : ""
         }`
       : "Qualify first (age 5–14 + where they live). If they name a city with another Steamoji, mention that academy once and let them choose Kirkland or the closer site."
-  } Keep them comfortable and clear their questions. Suggest a free trial only when trialReady=yes, then offer mixed open times (not Saturday-only).
+  } Keep them comfortable and make the value proposition clear. Go easy on the free trial session — do not invite it unless they ask to visit. Never volunteer a trial month. If they want to book a trial session, they must acknowledge a specific time before [BOOK:].
 
 ## KNOWN QUALIFICATION SO FAR (do not re-ask these)
 - Child age: ${
@@ -190,7 +193,7 @@ ${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
       ? `KNOWN (${parentEmail}) — do not re-ask`
       : "UNKNOWN — required before booking. When they confirm a slot, ask for their email first; do NOT emit [BOOK:…] until you have it."
   }
-- Free-trial ready: ${trialReady ? "YES — may soft-invite trial when they're comfortable" : `NO — ${trialQualifyGap({ ...qualify, age: effectiveAge })}. Do not suggest booking a free trial yet.`}
+- Free-trial ready: ${trialReady ? "YES — you may offer times only if they asked to visit / book. They must acknowledge a specific time before [BOOK:]." : `NO — ${trialQualifyGap({ ...qualify, age: effectiveAge })}. Do not suggest booking a free trial yet.`}
 ${
   nurtureFromUser
     ? `- They should go to NURTURING (${nurtureFromUser.reason}: ${nurtureFromUser.detail}). Be warm, do not push a trial, and include [NURTURE:${nurtureFromUser.reason}] once (do not pronounce it).`
@@ -215,7 +218,9 @@ ${
     : moreOptions
       ? `- They asked for more time options. Offer the NEXT unused times from the calendar lookup — do not repeat times already listed.`
       : isStaffTalkRequest(userText)
-        ? `- They asked to talk to a person. Offer that someone from the Steamoji Kirkland team can reach out. In this text reply include [OFFER_REACH_OUT] once. Do not invent a staff name.`
+        ? `- They asked to talk to a person. Say yes — our academy can reach out, or they can call ${siteConfig.phone} right away. Do not invent a staff name. Say "our academy", not "the Kirkland team". Do not emit [OFFER_REACH_OUT] or [REACH_OUT].`
+        : isBirthdayInquiry(userText)
+          ? `- They asked about a birthday party. Saturdays 4–6pm; gather age, headcount, and preferred Saturday. Say our academy will follow up with options. Do not invent pricing. Do not emit [OFFER_REACH_OUT] or [REACH_OUT].`
         : isStaffOutreachConfirm(userText, priorAssistant)
           ? `- They accepted a team callback. Confirm someone from the academy will reach out. Include [REACH_OUT] if you haven't.`
           : isCancelRequest(userText) && !isSlotConfirmation(userText)
@@ -224,7 +229,9 @@ ${
               ? `- They want to RESCHEDULE. Offer a few open times from the calendar. Do not [BOOK:…] until they pick a new slot.`
               : isSlotConfirmation(userText) && lead?.bookedStart
                 ? `- They are picking a new trial time. If it is open and email is known, [BOOK:…] the NEW time (that replaces the old appointment). Do not keep the old slot.`
-                : ""
+                : isTrialMonthQuestion(userText)
+                  ? `- They asked about a trial month (different from the one free trial session). Explain only because they asked. If they asked how to book sessions during it: parent app, multiple sessions based on the package. Do not [BOOK:] a trial-session slot.`
+                  : ""
 }
 
 ## LIVE FREE-SESSION AVAILABILITY (source of truth — use only when trial-ready or they ask availability)
@@ -315,7 +322,7 @@ If they confirmed a time that matches${
     content = ensureServicesImageMarker(content);
   }
 
-  if (isStaffOutreachConfirm(userText, priorAssistant)) {
+  if (isStaffTalkRequest(userText) || isStaffOutreachConfirm(userText, priorAssistant)) {
     const outreach = await sendStaffOutreach({
       lead,
       channel: "chat",
@@ -323,8 +330,14 @@ If they confirmed a time that matches${
       recentMessages: messages,
     });
     content = outreach.parentReply;
-  } else if (isStaffTalkRequest(userText)) {
-    content = ensureOfferReachOutMarker(content);
+  } else if (isBirthdayInquiry(userText)) {
+    await sendStaffOutreach({
+      lead,
+      channel: "chat",
+      userText,
+      recentMessages: messages,
+      kind: "birthday",
+    });
   }
 
   const nurtureHit =

@@ -10,6 +10,18 @@ export {
   REACH_OUT_MARKER,
 };
 
+/** Parent asked about a birthday / group party Maya cannot book herself. */
+export function isBirthdayInquiry(text: string) {
+  const t = text.toLowerCase().trim();
+  if (!t) return false;
+  if (/\bbirthday\b/.test(t)) return true;
+  if (/\b(kids?|children'?s|private)\s+part(y|ies)\b/.test(t)) return true;
+  return (
+    /\bpart(y|ies)\b/.test(t) &&
+    /\b(host|offer|do you (do|have)|group event)\b/.test(t)
+  );
+}
+
 /** Parent wants a human / staff member rather than (or in addition to) Maya. */
 export function isStaffTalkRequest(text: string) {
   const t = text.toLowerCase().trim();
@@ -46,8 +58,11 @@ export function isStaffOutreachConfirm(text: string, priorAssistant?: string) {
 
 export function replicaOfferedStaffOutreach(text: string) {
   const t = text.toLowerCase();
+  const promisedFollowUp =
+    /\b(reach out|follow up)\b/.test(t) ||
+    /\b(someone|team|staff|academy).{0,48}\b(contact|call|email)\b/.test(t);
   return (
-    /\breach out\b/.test(t) &&
+    promisedFollowUp &&
     /\b(someone|team|staff|academy|human|person)\b/.test(t)
   );
 }

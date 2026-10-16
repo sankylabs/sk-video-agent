@@ -7,7 +7,6 @@ import {
   servicesOverviewReply,
 } from "./services";
 import { isStaffTalkRequest } from "./staff-outreach";
-import { OFFER_REACH_OUT_MARKER } from "./chat-actions";
 import {
   childAgeRecallReply,
   EMAIL_NEEDED_FOR_BOOKING,
@@ -110,7 +109,7 @@ export function demoReply(
   }
 
   if (isStaffTalkRequest(userText)) {
-    return `I can have someone from the Steamoji Kirkland team reach out to you. You can also call us now at ${siteConfig.phone}. ${OFFER_REACH_OUT_MARKER}`;
+    return `Sure — our academy can reach out to you, or you can call ${siteConfig.phone} right away.`;
   }
 
   if (isChildAgeQuestion(userText)) {
@@ -192,17 +191,34 @@ export function demoReply(
   }
 
   if (
+    /\btrial month\b/.test(t) ||
+    /\b(month[- ]long trial|try for a month|monthly trial)\b/.test(t)
+  ) {
+    if (/\b(book|schedule|how do (we|i) book|sessions)\b/.test(t)) {
+      return `During a trial month you book sessions in the parent app — as many as your trial-month package includes. That's separate from the one-time free trial visit.`;
+    }
+    return `Yes — a trial month is different from the one free trial session. The trial session is a single ~30-minute visit. A trial month is a short package with multiple makerspace sessions you book in the parent app.`;
+  }
+
+  if (
+    /\b(curriculum|levels?|rewards?|oji|how long (is|does) the program)\b/.test(t) ||
+    /\b(tell me about|what's|what is) (the )?program\b/.test(t)
+  ) {
+    return `The program has 10 levels and about 2 years of curriculum. Kids earn rewards they can claim for gifts, and you follow progress in the parent app.`;
+  }
+
+  if (
     /\b(how (does|do)?\s*steamoji work|how (it|steamoji) works|what is steamoji|what's steamoji|what'?s steamoji about|why steamoji|tell me about steamoji|walk me through how)\b/.test(
       t,
     ) ||
     (/\b(walk me through|how does (it|this) work)\b/.test(t) &&
       !/\b(free )?(trial|session|visit|tour)\b/.test(t))
   ) {
-    return `Steamoji is a makerspace for kids 5–14 in Kirkland. We mentor a Maker Mindset — hands-on STEM plus creativity, adaptability, and resilience. Kids work on age-appropriate projects with facilitators; parents see the progress.`;
+    return `Steamoji is a makerspace for kids 5–14 in Kirkland — kids stay engaged on real STEM projects and parents see the progress. You'll follow along in the parent app, self-book sessions, and get an artifact video after every session. Scroll down this page for videos of the academy.`;
   }
 
   if (/\b(birthday|party|group event|private (party|event))\b/.test(t)) {
-    return `Birthday parties are Saturdays 4–6pm — fun STEM activities and hands-on projects. How old are the kids, roughly how many, and which Saturday were you thinking?`;
+    return `Birthday parties are Saturdays 4–6pm — fun STEM activities and hands-on projects. I'll have our academy follow up with options. How old are the kids, roughly how many, and which Saturday were you thinking?`;
   }
 
   if (

@@ -4,16 +4,20 @@ import {
   sendGhlEmail,
   upsertGhlContact,
 } from "./ghl";
+import { mayaActionNote } from "./lead-notes";
 import type { Lead } from "./leads";
 import { updateLead } from "./leads";
 
 export type OutreachChannel = "chat" | "video";
+
+export type StaffOutreachKind = "callback" | "birthday";
 
 export type StaffOutreachInput = {
   lead?: Lead | null;
   channel: OutreachChannel;
   userText?: string;
   recentMessages?: { role: string; content: string }[];
+  kind?: StaffOutreachKind;
 };
 
 const DUPLICATE_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -84,6 +88,7 @@ export function buildStaffOutreachEmail(input: StaffOutreachInput) {
   const lead = input.lead;
   const parentName = lead?.name?.trim() || "a parent";
   const channelLabel = input.channel === "video" ? "live video" : "text chat";
+  const birthday = input.kind === "birthday";
   const when = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
     weekday: "short",
@@ -100,12 +105,18 @@ export function buildStaffOutreachEmail(input: StaffOutreachInput) {
   const notes = [lead?.notes, lead?.crmNotes].filter(Boolean).join(" · ");
   const snippet = transcriptSnippet(input.recentMessages);
 
-  const subject = `Maya: ${parentName} asked for a team member to reach out`;
+  const subject = birthday
+    ? `Maya: ${parentName} asked about a birthday party`
+    : `Maya: ${parentName} wants to speak with the team`;
 
   const text = [
-    `A parent asked Maya (${siteConfig.personaTitle}) to have someone from ${siteConfig.brand} reach out.`,
+    birthday
+      ? `A parent asked Maya (${siteConfig.personaTitle}) about a Saturday birthday party at ${siteConfig.brand}.`
+      : `A parent asked Maya (${siteConfig.personaTitle}) to speak with someone from ${siteConfig.brand}.`,
     "",
-    `Please call or email them. They preferred a person over continuing with the AI advisor.`,
+    birthday
+      ? `Please call or email them with birthday-party options. Maya cannot book parties herself.`
+      : `Please call or email them. They want to talk to the academy team.`,
     "",
     `When: ${when}`,
     `Channel: ${channelLabel}`,
@@ -135,13 +146,21 @@ export function buildStaffOutreachEmail(input: StaffOutreachInput) {
           <tr>
             <td style="background:#2f3386;color:#ffffff;padding:20px 24px;">
               <p style="margin:0;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.85;">Maya · ${htmlEscape(siteConfig.personaTitle)}</p>
-              <h1 style="margin:8px 0 0;font-size:22px;line-height:1.3;font-weight:700;">Parent asked for a team member to reach out</h1>
+              <h1 style="margin:8px 0 0;font-size:22px;line-height:1.3;font-weight:700;">${
+                birthday
+                  ? "Please contact this family about a birthday party"
+                  : "Parent wants to speak with the team"
+              }</h1>
             </td>
           </tr>
           <tr>
             <td style="padding:24px;">
               <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">
-                Please <strong>call or email this family</strong>. They were with Maya on ${htmlEscape(channelLabel)} and asked to talk to someone from ${htmlEscape(siteConfig.brand)}.
+                ${
+                  birthday
+                    ? `Please <strong>call or email this family</strong> with birthday-party options. They were with Maya on ${htmlEscape(channelLabel)} and asked about a Saturday party at ${htmlEscape(siteConfig.brand)}. Maya cannot book parties herself.`
+                    : `Please <strong>call or email this family</strong>. They were with Maya on ${htmlEscape(channelLabel)} and asked to talk to someone from ${htmlEscape(siteConfig.brand)}.`
+                }
               </p>
               <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px;line-height:1.45;border-collapse:collapse;">
                 <tr><th align="left" style="width:140px;color:#5c5a70;font-weight:600;">When</th><td>${htmlEscape(when)}</td></tr>
@@ -176,7 +195,9 @@ export function buildStaffOutreachEmail(input: StaffOutreachInput) {
     subject,
     text,
     html,
-    parentReply: `I'll have someone from the Steamoji Kirkland team reach out to you. You can also call us now at ${siteConfig.phone} if that's easier.`,
+    parentReply: birthday
+      ? `Birthday parties are Saturdays 4–6pm — fun STEM activities and hands-on projects. I'll have our academy follow up with options. How old are the kids, roughly how many, and which Saturday were you thinking?`
+      : `Sure — our academy can reach out to you, or you can call ${siteConfig.phone} right away.`,
   };
 }
 
@@ -276,7 +297,7 @@ export async function sendStaffOutreach(input: StaffOutreachInput) {
       return {
         ok: true as const,
         duplicate: true,
-        parentReply: `Someone from the Steamoji Kirkland team is already lined up to reach out. You can also call ${siteConfig.phone} anytime.`,
+        parentReply: `Our academy is already lined up to reach out. You can also call ${siteConfig.phone} anytime.`,
       };
     }
   }
@@ -287,7 +308,13 @@ export async function sendStaffOutreach(input: StaffOutreachInput) {
     text: email.text,
     html: email.html,
     lead,
-    leadNote: `Maya: parent asked for a team member to reach out (${input.channel}). ${email.text}`,
+    leadNote: mayaActionNote(
+      "staff-outreach",
+      input.channel,
+      input.kind === "birthday"
+        ? "parent asked about a birthday party. Please contact them with options. Keep opportunity in Conversation"
+        : "parent wants to speak with the Steamoji Kirkland team. Keep opportunity in Conversation",
+    ),
   });
 
   if (lead?.id) {
@@ -300,7 +327,7 @@ export async function sendStaffOutreach(input: StaffOutreachInput) {
     console.error("[staff-outreach] email did not send", errors);
     return {
       ok: false as const,
-      parentReply: `I wasn't able to notify the team just now — please call us at ${siteConfig.phone} or email ${siteConfig.email}.`,
+      parentReply: `I wasn't able to notify our academy just now — please call us at ${siteConfig.phone} or email ${siteConfig.email}.`,
       errors,
     };
   }
@@ -323,12 +350,12 @@ export function bookingFallbackParentReply(
   intent: BookingFallbackInput["intent"] = "book",
 ) {
   if (intent === "cancel") {
-    return `I wasn't able to cancel ${spoken} automatically, so I've asked the Steamoji Kirkland team to take it off the calendar. They'll confirm. You can also call us at ${siteConfig.phone}.`;
+    return `I wasn't able to cancel ${spoken} automatically, so I've asked our academy to take it off the calendar. They'll confirm. You can also call us at ${siteConfig.phone}.`;
   }
   if (intent === "reschedule") {
-    return `I wasn't able to move your trial to ${spoken} automatically, so I've asked the Steamoji Kirkland team to update the calendar. They'll confirm. You can also call us at ${siteConfig.phone}.`;
+    return `I wasn't able to move your trial to ${spoken} automatically, so I've asked our academy to update the calendar. They'll confirm. You can also call us at ${siteConfig.phone}.`;
   }
-  return `I wasn't able to put ${spoken} on the calendar automatically, so I've asked the Steamoji Kirkland team to make that appointment for you. They'll confirm. You can also call us at ${siteConfig.phone}.`;
+  return `I wasn't able to put ${spoken} on the calendar automatically, so I've asked our academy to make that appointment for you. They'll confirm. You can also call us at ${siteConfig.phone}.`;
 }
 
 export function buildBookingFallbackEmail(input: BookingFallbackInput) {
@@ -487,7 +514,15 @@ export async function sendBookingFallback(input: BookingFallbackInput) {
     text: email.text,
     html: email.html,
     lead,
-    leadNote: `Maya: GHL ${intent} failed; asked staff to update trial for ${email.spoken}. ${email.text}`,
+    leadNote: mayaActionNote(
+      intent === "cancel"
+        ? "cancel-fallback"
+        : intent === "reschedule"
+          ? "reschedule-fallback"
+          : "book-fallback",
+      input.channel || "chat",
+      email.spoken,
+    ),
   });
 
   if (sent && lead?.id) {

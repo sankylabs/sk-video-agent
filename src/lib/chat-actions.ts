@@ -95,7 +95,7 @@ export function stripBookMarkers(text: string) {
     .replace(/\s*\[BOOK:[^\]]+\]\s*/g, " ")
     .replace(/\s*\[CANCEL(?::[^\]]*)?\]\s*/g, " ")
     .replace(/\s*\[UNQUALIFIED:(age|distance)\]\s*/gi, " ")
-    .replace(/\s*\[NURTURE:(later|too-young)\]\s*/gi, " ")
+    .replace(/\s*\[NURTURE:(later|too-young|too-old)\]\s*/gi, " ")
     .trim();
 }
 
@@ -196,6 +196,15 @@ export function isSlotConfirmation(text: string) {
     return true;
   }
   return hasSpokenClock(t);
+}
+
+export function isTrialMonthQuestion(text: string) {
+  const t = text.toLowerCase().trim();
+  if (!t) return false;
+  return (
+    /\btrial month\b/.test(t) ||
+    /\b(month[- ]long trial|try for a month|monthly trial)\b/.test(t)
+  );
 }
 
 export function isMoreOptionsRequest(text: string) {
