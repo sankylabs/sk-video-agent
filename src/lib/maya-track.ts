@@ -11,6 +11,7 @@ import {
 import { getOpenAIApiKey } from "./runtime-secrets";
 import type { Lead, LeadMessage } from "./leads";
 import { listLeadProfiles } from "./leads";
+import { notifyMayaLaunch } from "./maya-launch-mail";
 
 export type MayaChannel = "video" | "chat";
 
@@ -223,6 +224,10 @@ export async function startMayaSession(input: {
     const store = await readFileStore();
     store.sessions.unshift(session);
     await writeFileStore(store);
+    void notifyMayaLaunch({
+      leadName: session.leadName,
+      channel: session.channel,
+    }).catch((err) => console.error("[maya-launch-mail]", err));
     return session;
   }
 
@@ -244,6 +249,10 @@ export async function startMayaSession(input: {
       ],
     );
   });
+  void notifyMayaLaunch({
+    leadName: session.leadName,
+    channel: session.channel,
+  }).catch((err) => console.error("[maya-launch-mail]", err));
   return session;
 }
 
