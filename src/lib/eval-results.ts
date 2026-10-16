@@ -26,6 +26,7 @@ export type EvalScenarioResult = {
 export type EvalLastRun = {
   at: string;
   version?: number;
+  channel?: "text" | "video";
   baseUrl: string;
   judge?: boolean;
   passed: number;
@@ -36,12 +37,18 @@ export type EvalLastRun = {
   results: EvalScenarioResult[];
 };
 
-const resultPath = () =>
-  path.join(process.cwd(), ".data", "eval-last.json");
+const resultPath = (channel: "text" | "video" = "text") =>
+  path.join(
+    process.cwd(),
+    ".data",
+    channel === "video" ? "eval-last-video.json" : "eval-last.json",
+  );
 
-export async function readLastEvalRun(): Promise<EvalLastRun | null> {
+export async function readLastEvalRun(
+  channel: "text" | "video" = "text",
+): Promise<EvalLastRun | null> {
   try {
-    const raw = await fs.readFile(resultPath(), "utf8");
+    const raw = await fs.readFile(resultPath(channel), "utf8");
     return JSON.parse(raw) as EvalLastRun;
   } catch {
     return null;
