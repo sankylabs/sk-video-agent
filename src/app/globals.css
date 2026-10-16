@@ -1687,9 +1687,17 @@ button:disabled {
     font-size: clamp(1.25rem, 6.2vw, 1.85rem);
   }
 
-  .live-frame,
-  .maya-video-frame {
-    min-height: min(70vh, 560px);
+  .live-maya.live .live-frame,
+  .live-maya.live .maya-video-frame {
+    min-height: min(62dvh, 520px);
+  }
+
+  .live-maya.lobby .live-frame,
+  .live-maya.connecting .live-frame,
+  .live-maya.error .live-frame {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .live-maya.rehearsal .live-frame {
@@ -1764,6 +1772,128 @@ button:disabled {
   .home-foot-links {
     justify-items: start;
     text-align: left;
+  }
+}
+
+@media (max-width: 640px) {
+  .chat-page {
+    width: calc(100% - 1rem);
+    padding: 0.6rem 0 calc(1.25rem + env(safe-area-inset-bottom));
+  }
+
+  .maya-brand {
+    gap: 0.4rem;
+    padding: 0.7rem 0.85rem 0.75rem;
+    border-radius: 1rem;
+  }
+
+  .maya-brand-logo {
+    width: 44px;
+    height: 44px;
+  }
+
+  .maya-brand-name {
+    font-size: 1.15rem;
+    line-height: 1.1;
+  }
+
+  .maya-brand-mission {
+    display: none;
+  }
+
+  .maya-brand-location {
+    font-size: 0.8rem;
+  }
+
+  .live-maya.lobby .live-badge,
+  .live-maya.connecting .live-badge,
+  .live-maya.error .live-badge {
+    display: none;
+  }
+
+  .live-maya.lobby .presence,
+  .live-maya.connecting .presence,
+  .live-maya.error .presence {
+    position: relative;
+    inset: auto;
+    height: 200px;
+    min-height: 200px;
+    flex-shrink: 0;
+  }
+
+  .live-maya.lobby .presence-face,
+  .live-maya.connecting .presence-face,
+  .live-maya.error .presence-face {
+    width: min(168px, 44vw);
+  }
+
+  .live-maya.lobby .presence-glow,
+  .live-maya.lobby .presence-ring,
+  .live-maya.connecting .presence-glow,
+  .live-maya.connecting .presence-ring,
+  .live-maya.error .presence-glow,
+  .live-maya.error .presence-ring {
+    width: min(200px, 52vw);
+  }
+
+  .live-maya.lobby .live-overlay,
+  .live-maya.connecting .live-overlay,
+  .live-maya.error .live-overlay {
+    position: relative;
+    inset: auto;
+    justify-content: flex-start;
+    padding: 0.9rem 1rem 1.15rem;
+    background: linear-gradient(
+      180deg,
+      rgba(39, 34, 98, 0.96) 0%,
+      var(--brand-blue-deep) 100%
+    );
+  }
+
+  .live-maya.lobby .identity,
+  .live-maya.connecting .identity,
+  .live-maya.error .identity {
+    display: none;
+  }
+
+  .lobby-copy {
+    max-width: none;
+    margin-bottom: 0;
+  }
+
+  .lobby-copy h2 {
+    font-size: 1.55rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .lobby-copy p {
+    margin-bottom: 0.5rem;
+    font-size: 0.92rem;
+  }
+
+  .lobby-actions {
+    flex-direction: column;
+    align-items: stretch;
+    margin: 0.55rem 0 0.4rem;
+  }
+
+  .lobby-or {
+    align-self: center;
+  }
+
+  .live-overlay .join-btn,
+  .live-overlay .dock-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .call-dock {
+    margin-top: 0.2rem;
+  }
+
+  .call-dock .dock-cta,
+  .call-dock .dock-btn {
+    width: 100%;
   }
 }
 
