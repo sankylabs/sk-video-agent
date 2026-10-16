@@ -20,6 +20,7 @@ import {
   type UnqualifiedHit,
   type UnqualifiedReason,
 } from "./unqualified-detect";
+import { recordMayaAction } from "./maya-track";
 
 export type { UnqualifiedHit, UnqualifiedReason };
 export {
@@ -97,6 +98,12 @@ export async function commitUnqualifiedLead(
     opportunityStage: "Unqualified",
     unqualifiedAt: new Date().toISOString(),
     unqualifiedReason: hit.reason,
+  }).catch(() => undefined);
+
+  await recordMayaAction({
+    contactId,
+    kind: "unqualified",
+    detail: hit.detail,
   }).catch(() => undefined);
 
   if (errors.length) {

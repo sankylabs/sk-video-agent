@@ -185,6 +185,10 @@ function mergeGhlIntoLead(lead: Lead, ghl: GhlContactProfile): Partial<Lead> {
   };
 }
 
+export async function listLeadProfiles(): Promise<Lead[]> {
+  return readAll();
+}
+
 export async function getLead(id: string): Promise<Lead | null> {
   const key = id.trim();
   if (!key) return null;

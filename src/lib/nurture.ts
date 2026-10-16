@@ -17,6 +17,7 @@ import {
   type NurtureHit,
   type NurtureReason,
 } from "./nurture-detect";
+import { recordMayaAction } from "./maya-track";
 
 export type { NurtureHit, NurtureReason };
 export {
@@ -82,6 +83,12 @@ export async function commitNurtureLead(
     opportunityStage: "Nurturing",
     nurturedAt: new Date().toISOString(),
     nurtureReason: hit.reason,
+  }).catch(() => undefined);
+
+  await recordMayaAction({
+    contactId,
+    kind: "nurture",
+    detail: hit.detail,
   }).catch(() => undefined);
 
   if (errors.length) {

@@ -7,6 +7,7 @@ import {
 import { mayaActionNote } from "./lead-notes";
 import type { Lead } from "./leads";
 import { updateLead } from "./leads";
+import { recordMayaAction } from "./maya-track";
 
 export type OutreachChannel = "chat" | "video";
 
@@ -317,12 +318,6 @@ export async function sendStaffOutreach(input: StaffOutreachInput) {
     ),
   });
 
-  if (lead?.id) {
-    await updateLead(lead.id, {
-      staffOutreachAt: new Date().toISOString(),
-    }).catch(() => undefined);
-  }
-
   if (!sent) {
     console.error("[staff-outreach] email did not send", errors);
     return {
@@ -330,6 +325,21 @@ export async function sendStaffOutreach(input: StaffOutreachInput) {
       parentReply: `I wasn't able to notify our academy just now — please call us at ${siteConfig.phone} or email ${siteConfig.email}.`,
       errors,
     };
+  }
+
+  if (lead?.id) {
+    await updateLead(lead.id, {
+      staffOutreachAt: new Date().toISOString(),
+    }).catch(() => undefined);
+    await recordMayaAction({
+      contactId: lead.ghlContactId || lead.id,
+      kind: input.kind === "birthday" ? "birthday" : "staff-outreach",
+      status: "done",
+      detail:
+        input.kind === "birthday"
+          ? "Emailed the academy about a birthday party"
+          : "Emailed the academy — parent asked to talk with a person",
+    }).catch(() => undefined);
   }
 
   return { ok: true as const, duplicate: false, parentReply: email.parentReply };
@@ -529,6 +539,16 @@ export async function sendBookingFallback(input: BookingFallbackInput) {
     await updateLead(lead.id, {
       bookingFallbackAt: new Date().toISOString(),
       bookingFallbackStart: startKey,
+    }).catch(() => undefined);
+    await recordMayaAction({
+      contactId: lead.ghlContactId || lead.id,
+      kind:
+        intent === "cancel"
+          ? "cancel-fallback"
+          : intent === "reschedule"
+            ? "reschedule-fallback"
+            : "book-fallback",
+      detail: email.spoken,
     }).catch(() => undefined);
   }
 

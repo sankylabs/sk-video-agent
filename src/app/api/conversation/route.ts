@@ -7,6 +7,7 @@ import {
   createLivingConversation,
   endLivingConversation,
 } from "@/lib/tavus";
+import { startMayaSession } from "@/lib/maya-track";
 
 const bodySchema = z.object({
   leadId: z.string().optional(),
@@ -33,9 +34,22 @@ export async function POST(req: Request) {
 
   try {
     const conversation = await createLivingConversation(lead);
+    const contactId = lead?.ghlContactId || lead?.id;
+    const session = contactId
+      ? await startMayaSession({
+          contactId,
+          channel: "video",
+          lead,
+          tavusConversationId: conversation.conversationId,
+        }).catch((err) => {
+          console.error("[maya-track] start video session", err);
+          return null;
+        })
+      : null;
     return NextResponse.json({
       conversationId: conversation.conversationId,
       conversationUrl: conversation.conversationUrl,
+      sessionId: session?.id,
       provider: "tavus",
       livingVideo: true,
     });

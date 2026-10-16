@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { readLastEvalRun } from "@/lib/eval-results";
+import { readLastEvalRun, type EvalLastRun } from "@/lib/eval-results";
 import { siteConfig } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -16,45 +16,28 @@ function formatWhen(iso: string) {
   }
 }
 
-export default async function EvalResultsPage() {
-  const run = await readLastEvalRun();
-
+function SuiteResults({
+  title,
+  command,
+  run,
+}: {
+  title: string;
+  command: string;
+  run: EvalLastRun | null;
+}) {
   return (
-    <main className="page eval-page">
-      <nav className="nav">
-        <Link className="brand-mark" href="/">
-          {siteConfig.brand}
-        </Link>
-        <div className="nav-actions">
-          <Link className="ghost-link" href="/send">
-            Send a lead link
-          </Link>
-          <Link className="nav-cta" href="/">
-            Home
-          </Link>
-        </div>
-      </nav>
-
-      <header className="eval-head">
-        <p className="eyebrow">Evaluation</p>
-        <h1>Maya eval results</h1>
-        <p className="lede">
-          Latest run from <code>.data/eval-last.json</code>. Re-run with{" "}
-          <code>npm run eval</code>, then refresh this page.
-        </p>
-      </header>
-
+    <section className="eval-suite-block">
+      <h2 className="eval-channel">{title}</h2>
       {!run ? (
-        <section className="eval-empty">
-          <h2>No results yet</h2>
+        <div className="eval-empty">
+          <h3>No results yet</h3>
           <p>
-            Start the app, then run <code>npm run eval</code> to generate{" "}
-            <code>.data/eval-last.json</code>.
+            Start the app, then run <code>{command}</code>.
           </p>
-        </section>
+        </div>
       ) : (
         <>
-          <section className="eval-summary">
+          <div className="eval-summary">
             <div
               className={`eval-suite-pill ${run.suitePass ? "is-pass" : "is-fail"}`}
             >
@@ -87,12 +70,12 @@ export default async function EvalResultsPage() {
                 Failed: {run.failedIds.join(", ")}
               </p>
             ) : null}
-          </section>
+          </div>
 
-          <section className="eval-list">
+          <div className="eval-list">
             {run.results.map((r) => (
               <article
-                key={r.id}
+                key={`${title}-${r.id}`}
                 className={`eval-card ${r.pass ? "is-pass" : "is-fail"}`}
               >
                 <header className="eval-card-head">
@@ -135,9 +118,7 @@ export default async function EvalResultsPage() {
 
                 {r.notes ? <p className="eval-notes">{r.notes}</p> : null}
 
-                {r.error ? (
-                  <p className="eval-error">{r.error}</p>
-                ) : null}
+                {r.error ? <p className="eval-error">{r.error}</p> : null}
 
                 {!r.pass &&
                 (r.mustFail?.length ||
@@ -180,9 +161,59 @@ export default async function EvalResultsPage() {
                 ) : null}
               </article>
             ))}
-          </section>
+          </div>
         </>
       )}
+    </section>
+  );
+}
+
+export default async function EvalResultsPage() {
+  const [textRun, videoRun] = await Promise.all([
+    readLastEvalRun("text"),
+    readLastEvalRun("video"),
+  ]);
+
+  return (
+    <main className="page eval-page">
+      <nav className="nav">
+        <Link className="brand-mark" href="/">
+          {siteConfig.brand}
+        </Link>
+        <div className="nav-actions">
+          <Link className="ghost-link" href="/maya">
+            Maya report
+          </Link>
+          <Link className="ghost-link" href="/send">
+            Send a lead link
+          </Link>
+          <Link className="nav-cta" href="/">
+            Home
+          </Link>
+        </div>
+      </nav>
+
+      <header className="eval-head">
+        <p className="eyebrow">Evaluation</p>
+        <h1>Maya eval results</h1>
+        <p className="lede">
+          Text chat uses <code>/api/chat</code>. Video uses the live Tavus
+          prompt via <code>/api/video-chat</code> (no Tavus room). Re-run with{" "}
+          <code>npm run eval</code>, <code>npm run eval:video</code>, or{" "}
+          <code>npm run eval:all</code>, then refresh.
+        </p>
+      </header>
+
+      <SuiteResults
+        title="Text chat"
+        command="npm run eval"
+        run={textRun}
+      />
+      <SuiteResults
+        title="Video Maya"
+        command="npm run eval:video"
+        run={videoRun}
+      />
     </main>
   );
 }

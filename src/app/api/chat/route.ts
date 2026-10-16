@@ -40,6 +40,7 @@ import {
   isMoreOptionsRequest,
   isRescheduleRequest,
   isSlotConfirmation,
+  isGoodbye,
   isTrialMonthQuestion,
   slotsOfferedInText,
   stripBookMarkers,
@@ -59,6 +60,7 @@ import {
   isStaffTalkRequest,
 } from "@/lib/staff-outreach";
 import { ghlIsoToLocalStart } from "@/lib/ghl";
+import { appendMayaTurn, startMayaSession } from "@/lib/maya-track";
 import {
   answerAvailabilityQuestion,
   buildAvailabilityBrief,
@@ -217,6 +219,8 @@ ${
       }`
     : moreOptions
       ? `- They asked for more time options. Offer the NEXT unused times from the calendar lookup — do not repeat times already listed.`
+      : isGoodbye(userText)
+        ? `- They are saying goodbye. One short warm line. Do not recap, and do not give phone, email, address, website, or hours.`
       : isStaffTalkRequest(userText)
         ? `- They asked to talk to a person. Say yes — our academy can reach out, or they can call ${siteConfig.phone} right away. Do not invent a staff name. Say "our academy", not "the Kirkland team". Do not emit [OFFER_REACH_OUT] or [REACH_OUT].`
         : isBirthdayInquiry(userText)
@@ -598,6 +602,25 @@ If they confirmed a time that matches${
         { role: "assistant", content },
       ]),
     });
+    const contactId = lead.ghlContactId || lead.id;
+    const session = await startMayaSession({
+      contactId,
+      channel: "chat",
+      lead,
+      reuseOpen: true,
+    }).catch(() => null);
+    if (session) {
+      await appendMayaTurn({
+        sessionId: session.id,
+        role: "user",
+        content: userText,
+      }).catch(() => undefined);
+      await appendMayaTurn({
+        sessionId: session.id,
+        role: "assistant",
+        content,
+      }).catch(() => undefined);
+    }
   }
 
   return NextResponse.json({

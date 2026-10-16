@@ -213,6 +213,8 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const callRef = useRef<DailyCall | null>(null);
   const conversationIdRef = useRef<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const trackedReplicaRef = useRef("");
   const joiningRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phaseRef = useRef<Phase>("lobby");
@@ -270,6 +272,22 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   function setActiveConversation(id: string | null) {
     conversationIdRef.current = id;
     setConversationId(id);
+  }
+
+  function trackMaya(payload: Record<string, unknown>) {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId) return;
+    void fetch("/api/maya-track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, ...payload }),
+    }).catch(() => undefined);
+  }
+
+  function flushTrackedReplica() {
+    const text = trackedReplicaRef.current.trim();
+    trackedReplicaRef.current = "";
+    if (text) trackMaya({ type: "turn", role: "assistant", content: text });
   }
 
   function clearJoinTimeout() {
@@ -624,6 +642,9 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
   dailyHandlersRef.current.onLeftMeeting = () => {
     void (async () => {
       const id = conversationIdRef.current;
+      flushTrackedReplica();
+      trackMaya({ type: "end" });
+      sessionIdRef.current = null;
       await destroyCall();
       if (id) {
         await fetch(
@@ -662,6 +683,8 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     const userSpeech = extractUserSpeech(ev.data);
     if (userSpeech) {
       lastUserSpeechRef.current = userSpeech;
+      flushTrackedReplica();
+      trackMaya({ type: "turn", role: "user", content: userSpeech });
       if (isCancelRequest(userSpeech) && !isSlotConfirmation(userSpeech)) {
         void requestVideoBook(replicaSpeechRef.current, { cancel: true });
       } else if (isSlotConfirmation(userSpeech)) {
@@ -673,6 +696,10 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       noteReplicaSpeech();
       replicaSpeechRef.current = mergeSpokenUtterance(
         replicaSpeechRef.current,
+        replicaSpeech,
+      );
+      trackedReplicaRef.current = mergeSpokenUtterance(
+        trackedReplicaRef.current,
         replicaSpeech,
       );
     }
@@ -823,6 +850,8 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
       if (callRef.current !== call) return;
 
       setActiveConversation(data.conversationId || null);
+      sessionIdRef.current = data.sessionId || null;
+      trackedReplicaRef.current = "";
       await call.join({
         url: data.conversationUrl as string,
         userName: lead?.name || "Parent",
@@ -910,6 +939,9 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
 
   async function leaveCall() {
     const id = conversationIdRef.current;
+    flushTrackedReplica();
+    trackMaya({ type: "end" });
+    sessionIdRef.current = null;
     await destroyCall();
     if (id) {
       await fetch(

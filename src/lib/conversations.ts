@@ -39,6 +39,10 @@ function getPool(): Pool | null {
   return pool;
 }
 
+export async function withDb<T>(fn: (client: PoolClient) => Promise<T>): Promise<T | null> {
+  return withClient(fn);
+}
+
 async function withClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T | null> {
   const p = getPool();
   if (!p) return null;
@@ -117,4 +121,38 @@ export async function saveConversation(
 
 export function conversationKey(lead: { id: string; ghlContactId?: string }) {
   return (lead.ghlContactId || lead.id).trim();
+}
+
+export async function listStoredConversations(): Promise<
+  { contactId: string; messages: LeadMessage[]; updatedAt: string }[]
+> {
+  if (!getPool()) {
+    return [...fileFallback.entries()].map(([contactId, messages]) => ({
+      contactId,
+      messages,
+      updatedAt: new Date().toISOString(),
+    }));
+  }
+  try {
+    const rows = await withClient(async (client) => {
+      const res = await client.query<{
+        contact_id: string;
+        messages: unknown;
+        updated_at: Date;
+      }>(
+        `SELECT contact_id, messages, updated_at FROM maya_conversations ORDER BY updated_at DESC`,
+      );
+      return res.rows;
+    });
+    return (rows || []).map((row) => ({
+      contactId: row.contact_id,
+      messages: validMessages(row.messages),
+      updatedAt:
+        row.updated_at instanceof Date
+          ? row.updated_at.toISOString()
+          : String(row.updated_at),
+    }));
+  } catch {
+    return [];
+  }
 }

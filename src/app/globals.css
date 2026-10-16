@@ -1766,3 +1766,350 @@ button:disabled {
     text-align: left;
   }
 }
+
+.maya-page {
+  padding-bottom: 4rem;
+}
+
+.maya-head h1 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  letter-spacing: 0.02em;
+  margin: 0.2rem 0 0.6rem;
+}
+
+.maya-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin: 1.4rem 0 1.2rem;
+}
+
+.maya-stat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1rem 1.2rem;
+  min-width: 9rem;
+  box-shadow: var(--shadow);
+}
+
+.maya-stat strong {
+  display: block;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--brand-blue);
+}
+
+.maya-stat span,
+.maya-range {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.maya-range {
+  display: grid;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.maya-range select,
+.maya-login input {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  background: var(--panel);
+}
+
+.maya-chart-card,
+.maya-leads-card,
+.maya-login {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 1.2rem 1.3rem 1.4rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.2rem;
+}
+
+.maya-chart-card h2,
+.maya-leads-card h2 {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+}
+
+.maya-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.45rem;
+  min-height: 140px;
+  padding: 0.4rem 0 0;
+}
+
+.maya-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.maya-bar {
+  width: 100%;
+  max-width: 28px;
+  min-height: 4px;
+  border-radius: 8px 8px 2px 2px;
+  background: linear-gradient(180deg, var(--brand-yellow), var(--brand-blue));
+}
+
+.maya-bar-col span,
+.maya-bar-col em {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.maya-bar-col em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--brand-ink);
+}
+
+.maya-date-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.maya-date-list li,
+.maya-session-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.maya-empty {
+  color: var(--muted);
+  margin: 0;
+}
+
+.maya-table-wrap {
+  overflow-x: auto;
+}
+
+.maya-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.maya-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.4rem 0.6rem;
+}
+
+.maya-table td {
+  padding: 0.7rem 0.6rem;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.maya-table tbody tr {
+  cursor: pointer;
+}
+
+.maya-table tbody tr:hover {
+  background: rgba(47, 51, 134, 0.05);
+}
+
+.maya-table strong {
+  display: block;
+}
+
+.maya-id {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.maya-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 27, 58, 0.55);
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.maya-sheet {
+  width: min(920px, 100%);
+  max-height: min(88vh, 900px);
+  overflow: auto;
+  background: var(--brand-white);
+  border-radius: 24px;
+  padding: 1.3rem 1.4rem 1.6rem;
+  position: relative;
+  box-shadow: var(--shadow);
+}
+
+.maya-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  border: 0;
+  background: var(--brand-cream);
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.maya-lead-meta {
+  color: var(--muted);
+  margin: 0 0 1rem;
+}
+
+.maya-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.maya-tabs button {
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.maya-tabs button.is-on {
+  background: var(--brand-blue);
+  color: white;
+  border-color: var(--brand-blue);
+}
+
+.maya-summary-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1.2rem;
+}
+
+.maya-summary {
+  white-space: pre-wrap;
+  font-family: inherit;
+  background: var(--brand-cream);
+  border-radius: 16px;
+  padding: 0.9rem 1rem;
+  margin: 0 0 0.8rem;
+}
+
+.maya-actions {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.maya-actions li {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+}
+
+.maya-actions.is-todo li {
+  border-color: var(--brand-yellow);
+  background: rgba(242, 208, 96, 0.2);
+}
+
+.maya-actions strong {
+  display: block;
+  text-transform: capitalize;
+  font-size: 0.82rem;
+}
+
+.maya-transcript {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.maya-transcript li {
+  border-radius: 16px;
+  padding: 0.7rem 0.9rem;
+}
+
+.maya-transcript li span {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.2rem;
+  color: var(--muted);
+}
+
+.maya-transcript .is-parent {
+  background: rgba(208, 206, 232, 0.45);
+}
+
+.maya-transcript .is-maya {
+  background: rgba(242, 208, 96, 0.28);
+}
+
+.maya-login h1 {
+  margin: 0.2rem 0 0.5rem;
+}
+
+.maya-login p {
+  color: var(--muted);
+}
+
+.maya-login button,
+.maya-login input {
+  display: block;
+  width: 100%;
+  margin-top: 0.7rem;
+}
+
+.maya-login button {
+  background: var(--brand-blue);
+  color: white;
+  border: 0;
+  border-radius: 12px;
+  padding: 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.maya-error {
+  color: var(--brand-danger);
+}
+
+@media (max-width: 800px) {
+  .maya-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .maya-stats {
+    align-items: stretch;
+  }
+
+  .maya-range {
+    margin-left: 0;
+    width: 100%;
+  }
+}

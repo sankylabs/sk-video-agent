@@ -781,6 +781,7 @@ export async function searchGhlOpportunitiesForContact(contactId: string) {
       id?: string;
       pipelineId?: string;
       pipelineStageId?: string;
+      status?: string;
     }[];
   }>(config, "/opportunities/search", {
     query: {

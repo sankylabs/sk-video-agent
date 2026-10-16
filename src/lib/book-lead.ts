@@ -1,5 +1,6 @@
 import { cancelGhlAppointment, ghlIsoToLocalStart, isGhlCalendarEnabled } from "./ghl";
 import { extractBookMarkers } from "./chat-actions";
+import { mayaActionNote, writeMayaLeadNote } from "./lead-notes";
 import { type Lead, updateLead } from "./leads";
 import { spokenTrialTime } from "./memory";
 import {
@@ -10,6 +11,7 @@ import {
   sendBookingFallback,
   type OutreachChannel,
 } from "./staff-outreach-mail";
+import { recordMayaAction } from "./maya-track";
 import {
   answerAvailabilityQuestion,
   bookSlot,
@@ -184,6 +186,25 @@ export async function commitLeadBooking(
       patch.ghlAppointmentId = result.booking.ghlAppointmentId;
     }
     await updateLead(lead.id, patch);
+    const contactId =
+      result.booking.ghlContactId || lead.ghlContactId || lead.id;
+    const reschedule = Boolean(
+      lead.bookedStart &&
+        ghlIsoToLocalStart(lead.bookedStart) !== normalized,
+    );
+    await writeMayaLeadNote(
+      contactId,
+      mayaActionNote(
+        reschedule ? "reschedule" : "book",
+        opts?.channel || "chat",
+        result.booking.label || spoken,
+      ),
+    );
+    await recordMayaAction({
+      contactId,
+      kind: reschedule ? "reschedule" : "book",
+      detail: result.booking.label || spoken,
+    }).catch(() => undefined);
   }
 
   return result;
@@ -258,6 +279,15 @@ export async function commitLeadCancel(
       ghlAppointmentId: undefined,
       pendingBookStart: undefined,
     });
+    await writeMayaLeadNote(
+      lead.ghlContactId || lead.id,
+      mayaActionNote("cancel", opts?.channel || "chat", spoken),
+    );
+    await recordMayaAction({
+      contactId: lead.ghlContactId || lead.id,
+      kind: "cancel",
+      detail: spoken,
+    }).catch(() => undefined);
   }
 
   return { ok: true, spoken };
