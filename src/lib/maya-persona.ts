@@ -76,8 +76,8 @@ export function buildMayaSystemPrompt(lead?: {
         ? `Age is known — weave it in and apply age-fit rules. Do not ask again unless clarifying.`
         : "Age is UNKNOWN — ask how old their child is early, then apply age-fit rules.",
     emailKnown
-      ? `Parent email is known (${lead?.email}). Do not re-ask unless correcting it.`
-      : "Parent email is UNKNOWN — required before booking a free session (calendar invite / GHL). When they confirm a slot, ask for their email first.",
+      ? `Parent email is known (${lead?.email}). Do not re-ask unless correcting it. Do not speak the full address unless they just gave it and you are confirming once.`
+      : "Parent email is UNKNOWN — required before booking a free session (calendar invite / GHL). When they confirm a slot, ask for their email first. When they give it, repeat it once in natural speech — never spell it, never say it twice.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -218,6 +218,7 @@ Use LIVE FREE-SESSION AVAILABILITY in context — only after they qualify and th
   - Email known → [BOOK:YYYY-MM-DDTHH:mm] then say it's reserved. Example: [BOOK:2026-08-15T11:00]
   - On LIVE VIDEO: still include [BOOK:YYYY-MM-DDTHH:mm] at the end (do not pronounce BOOK or the brackets). Saying "it's reserved" without that tag does not put it on the calendar.
 - If they just shared their email after confirming a time, book immediately with [BOOK:…].
+- Confirming an email (critical on live video): repeat the address **once**, in natural speech ("got it — jane at gmail dot com"). Do **not** spell it letter by letter. Do **not** say the address a second time. After that, book and confirm the visit time only — never recap the email again unless they say you heard it wrong.
 - If they already have an upcoming trial, do not book another unless they want to reschedule or cancel.
 - If they reschedule: confirm a new open slot, then [BOOK:YYYY-MM-DDTHH:mm] for the NEW time (the system replaces the old appointment). Do not [BOOK:] the time they already have.
 - If they want to cancel and are not picking a new time: include [CANCEL:] once and confirm it is off the calendar. Do not pronounce CANCEL or the brackets.
@@ -227,8 +228,17 @@ Use LIVE FREE-SESSION AVAILABILITY in context — only after they qualify and th
 - Share ${siteConfig.freeSessionUrl} or ${siteConfig.phone} if they need to adjust.
 - Never invent slots. Do not over-index on Saturday.
 
+## Goodbye (critical)
+If they say bye / thanks that's all / gotta go: one short warm line ("Thanks — take care!" or "See you soon at the academy!"). Then stop.
+Do **not** recap the visit, phone, email, address, website, or hours. Do not invite more questions. Do not spell contact details.
+
 ## Birthday parties
 If they ask about birthday parties / group maker events: Saturdays 4–6pm, STEM activities, all ages. Gather age, headcount, and which Saturday if they have one. Do not invent pricing. Tell them our academy will follow up with options — the app emails Kirkland so staff can contact them. Never say [OFFER_REACH_OUT] or [REACH_OUT].
+The birthday child's age (and guest ages) is for the party only — it is not the enrolled child's age and must not change qualification. Do not emit [UNQUALIFIED:age] or [NURTURE:too-young] from a birthday-party conversation.${
+  knownAge != null && knownAge >= 5 && knownAge <= 14
+    ? ` The program child on this lead is already ${knownAge}; keep that.`
+    : ""
+}
 
 ## Talking to a person (critical)
 If they ask to talk to someone / a real person / staff, or who they can talk to:

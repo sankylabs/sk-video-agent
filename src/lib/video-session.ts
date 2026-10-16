@@ -11,7 +11,7 @@ import {
   trialQualifyGap,
 } from "./qualify";
 import { locationSessionNote } from "./locations";
-import { isTrialMonthQuestion } from "./chat-actions";
+import { isGoodbye, isTrialMonthQuestion } from "./chat-actions";
 import { detectNurture } from "./nurture-detect";
 import { isBirthdayInquiry, isStaffTalkRequest } from "./staff-outreach";
 
@@ -64,6 +64,7 @@ export async function buildVideoSessionContext(lead?: VideoLeadLike | null) {
   });
   const askedForPerson = isStaffTalkRequest(lastUser);
   const askedBirthday = isBirthdayInquiry(lastUser);
+  const sayingBye = isGoodbye(lastUser);
   const context = `${buildMayaSystemPrompt(
     {
       ...(lead ?? {}),
@@ -90,8 +91,8 @@ There is no time limit while they are talking. Stay with them as long as they ar
 ${locationSessionNote(qualify.locationHint, qualify.locationKnown)}
 - Parent email: ${
     emailKnown
-      ? `KNOWN (${qualify.email || lead?.email}) — do not re-ask`
-      : "UNKNOWN — required before booking; ask when they confirm a slot"
+      ? `KNOWN (${qualify.email || lead?.email}) — do not re-ask, do not speak it unless they just gave it and you are confirming once`
+      : "UNKNOWN — required before booking; ask when they confirm a slot. When they give it, repeat once in natural speech — never spell, never twice"
   }
 - Free-trial ready: ${isTrialQualified(qualify) ? "YES" : `NO — ${trialQualifyGap(qualify)}`}
 ${
@@ -100,10 +101,12 @@ ${
     : ""
 }
 ${
-  askedForPerson
+  sayingBye
+    ? `- They are saying goodbye. One short warm line. Do not recap, and do not give phone, email, address, website, or hours.`
+    : askedForPerson
     ? `- They asked to talk to a person. Say yes — our academy can reach out, or they can call ${siteConfig.phone} right away. Do not invent a staff name. Say "our academy", not "the Kirkland team". Do not emit [OFFER_REACH_OUT] or [REACH_OUT].`
     : askedBirthday
-      ? `- They asked about a birthday party. Saturdays 4–6pm; gather age, headcount, and preferred Saturday. Say our academy will follow up with options. Do not invent pricing. Do not emit [OFFER_REACH_OUT] or [REACH_OUT].`
+      ? `- They asked about a birthday party. Saturdays 4–6pm; gather age, headcount, and preferred Saturday. Say our academy will follow up with options. Do not invent pricing. Do not emit [OFFER_REACH_OUT] or [REACH_OUT]. Guest/birthday-child ages are for the party only — do not treat them as the enrolled child's age, and do not emit [UNQUALIFIED:age] or [NURTURE:too-young].`
       : isTrialMonthQuestion(lastUser)
         ? `- They asked about a trial month (different from the one free trial session). Explain only because they asked. If they asked how to book sessions during it: parent app, multiple sessions based on the package. Do not [BOOK:] a trial-session slot.`
         : ""
@@ -114,6 +117,7 @@ If they want a human / staff / "who can I talk to": say yes — our academy can 
 
 ## LIVE FREE-SESSION AVAILABILITY (use only when they asked to visit / see times)
 Do not list times or [BOOK:] until they asked. They must acknowledge a specific day/time first. When they confirm an open slot and parent email is known, end your reply with [BOOK:YYYY-MM-DDTHH:mm] (do not pronounce BOOK or the brackets). The app uses that tag to write the GHL appointment — spoken confirmation alone does not book.
+If they just said their email: repeat it once in natural speech, then book. Do not spell it. Do not say the address more than once.
 If they already have an upcoming trial and want a different time, [BOOK:] the NEW slot (that replaces the old one). If they want to cancel without a new time, end with [CANCEL:] (do not pronounce CANCEL or the brackets).
 If the child is over 14, say we do not have a program appropriate for their age right now but we can reach out in the future, and end with [NURTURE:too-old]. If the child is under 5 and they want to come later / stay in touch, end with [NURTURE:too-young] instead. If they are a Kirkland-area fit and not ready now, end with [NURTURE:later]. If they are outside Kirkland and say it is too far / they will use a closer Steamoji, end with [UNQUALIFIED:distance]. Do not pronounce those tags.
 ${brief}

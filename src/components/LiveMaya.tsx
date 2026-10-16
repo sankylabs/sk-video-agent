@@ -42,9 +42,11 @@ import {
 import {
   extractReplicaSpeech,
   extractUserSpeech,
+  isBirthdayAgeQuestion,
   isBirthdayInquiry,
   isStaffOutreachConfirm,
   isStaffTalkRequest,
+  mergeSpokenUtterance,
   replicaOfferedStaffOutreach,
 } from "@/lib/staff-outreach";
 import {
@@ -669,10 +671,22 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
     const replicaSpeech = extractReplicaSpeech(ev.data);
     if (replicaSpeech) {
       noteReplicaSpeech();
-      replicaSpeechRef.current =
-        `${replicaSpeechRef.current} ${replicaSpeech}`.trim().slice(-2000);
+      replicaSpeechRef.current = mergeSpokenUtterance(
+        replicaSpeechRef.current,
+        replicaSpeech,
+      );
     }
     const ageFromSpeech = userSpeech ? parseChildAge(userSpeech) : null;
+    const knownLeadAge = parseChildAge(lead?.childAge);
+    const recentReplica = replicaSpeechRef.current.slice(-600);
+    const birthdayAgeTalk =
+      Boolean(userSpeech && isBirthdayInquiry(userSpeech)) ||
+      isBirthdayAgeQuestion(recentReplica);
+    const ageOutOfProgram =
+      ageFromSpeech != null &&
+      (ageFromSpeech < 5 || ageFromSpeech > 14) &&
+      !birthdayAgeTalk &&
+      !(knownLeadAge != null && knownLeadAge >= 5 && knownLeadAge <= 14);
     if (
       userSpeech &&
       (extractUnqualifiedReason(userSpeech) ||
@@ -680,7 +694,7 @@ export function LiveMaya({ lead, embedded = false, initialMessages }: Props) {
         isDistanceDecline(userSpeech) ||
         isNotReadyNow(userSpeech) ||
         looksNurtureTooYoung(userSpeech) ||
-        (ageFromSpeech != null && (ageFromSpeech < 5 || ageFromSpeech > 14)))
+        ageOutOfProgram)
     ) {
       void requestVideoQualify(replicaSpeechRef.current);
     }

@@ -1,5 +1,6 @@
 import { parseChildAge } from "./greeting";
 import { PLACE_RE } from "./locations";
+import { isBirthdayAgeQuestion, isBirthdayInquiry } from "./staff-outreach";
 
 export type ChatTurn = { role: string; content: string };
 
@@ -74,7 +75,8 @@ export function inferQualifyContext(
     crmNotes?: string;
   } | null,
 ): QualifyContext {
-  let age = parseChildAge(lead?.childAge) ?? null;
+  const crmAge = parseChildAge(lead?.childAge) ?? null;
+  let age = crmAge;
   let locationHint: string | undefined;
   const crmBlob = [
     lead?.notes,
@@ -100,7 +102,8 @@ export function inferQualifyContext(
   else if (lead?.location?.trim()) locationHint = lead.location.trim();
   else if (lead?.city?.trim()) locationHint = lead.city.trim();
 
-  for (const msg of messages) {
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
     if (msg.role !== "user") continue;
     const text = msg.content || "";
 
@@ -109,20 +112,29 @@ export function inferQualifyContext(
       /\b(how old|what age|do you know)\b/i.test(text) &&
       (text.includes("?") ||
         /\b(how old is|what age is)\b/i.test(text));
+    const priorAssistant = [...messages.slice(0, i)]
+      .reverse()
+      .find((m) => m.role === "assistant")?.content;
+    const birthdayAgeTalk =
+      isBirthdayInquiry(text) || isBirthdayAgeQuestion(priorAssistant || "");
 
-    if (!askingAge) {
+    if (!askingAge && !birthdayAgeTalk) {
       const yearOld = text.match(YEAR_OLD_RE);
-      if (yearOld) {
-        age = Number(yearOld[1]);
-      } else {
-        const foundAge = parseChildAge(text);
-        if (
-          foundAge != null &&
-          (AGE_STATEMENT_RE.test(text) ||
-            /^(1[0-8]|[1-9]|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen)$/i.test(
-              text.trim(),
-            ))
-        ) {
+      const foundAge = yearOld ? Number(yearOld[1]) : parseChildAge(text);
+      if (
+        foundAge != null &&
+        (yearOld ||
+          AGE_STATEMENT_RE.test(text) ||
+          /^(1[0-8]|[1-9]|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen)$/i.test(
+            text.trim(),
+          ))
+      ) {
+        const crmFits = crmAge != null && crmAge >= 5 && crmAge <= 14;
+        const correcting =
+          /\b(actually|i meant|correction|was wrong|not \d+)\b/i.test(text);
+        if (crmFits && (foundAge < 5 || foundAge > 14) && !correcting) {
+          // Keep the known program-age child; ignore STT / party-guest ages.
+        } else {
           age = foundAge;
         }
       }

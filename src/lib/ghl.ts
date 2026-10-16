@@ -730,6 +730,15 @@ export async function findNurturingStage(currentPipelineId?: string) {
   });
 }
 
+export async function findConversationStage(currentPipelineId?: string) {
+  return findNamedStage({
+    stageName: "Conversation",
+    currentPipelineId,
+    envPipe: process.env.GHL_PIPELINE_ID?.trim(),
+    envStage: process.env.GHL_CONVERSATION_STAGE_ID?.trim(),
+  });
+}
+
 export async function addGhlContactTags(contactId: string, tags: string[]) {
   const config = getGhlConfig();
   if (!config) throw new Error("GHL is not configured");
@@ -793,8 +802,15 @@ async function moveGhlOpportunityToStage(
   const config = getGhlConfig();
   if (!config) throw new Error("GHL is not configured");
   const opps = await searchGhlOpportunitiesForContact(contactId);
-  const primary = opps[0];
-  const target = await findTarget(primary?.pipelineId);
+  const envPipe = process.env.GHL_PIPELINE_ID?.trim();
+  const preferred =
+    opps.find((o) => o.pipelineId === envPipe) ||
+    opps.find((o) => o.status === "open") ||
+    opps[0];
+  const target = await findTarget(preferred?.pipelineId);
+  const primary =
+    (target && opps.find((o) => o.pipelineId === target.pipelineId)) ||
+    preferred;
   if (!target) throw new Error(missingError);
   if (
     primary?.id &&
@@ -854,6 +870,18 @@ export async function moveGhlOpportunityToNurturing(
     contactName,
     findNurturingStage,
     "No Nurturing pipeline stage found in GHL",
+  );
+}
+
+export async function moveGhlOpportunityToConversation(
+  contactId: string,
+  contactName?: string,
+) {
+  return moveGhlOpportunityToStage(
+    contactId,
+    contactName,
+    findConversationStage,
+    "No Conversation pipeline stage found in GHL",
   );
 }
 

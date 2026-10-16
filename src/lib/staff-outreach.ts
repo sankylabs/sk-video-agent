@@ -22,6 +22,34 @@ export function isBirthdayInquiry(text: string) {
   );
 }
 
+/** Maya is gathering birthday-guest age / headcount — not the enrolled child's age. */
+export function isBirthdayAgeQuestion(text: string) {
+  const t = text.toLowerCase();
+  if (!t) return false;
+  if (/\bbirthday child\b/.test(t)) return true;
+  return (
+    /\bbirthday\b/.test(t) &&
+    /\b(what age|how old|how many kids|headcount)\b/.test(t)
+  );
+}
+
+/** Keep the longest growing caption instead of concatenating duplicate replica chunks. */
+export function mergeSpokenUtterance(prev: string, next: string, max = 2000) {
+  const a = prev.trim();
+  const b = next.trim();
+  if (!b) return a.slice(-max);
+  if (!a) return b.slice(-max);
+  if (a.includes(b)) return a.slice(-max);
+  if (b.includes(a)) return b.slice(-max);
+  const overlapMax = Math.min(a.length, b.length);
+  for (let n = overlapMax; n >= 12; n--) {
+    if (a.slice(-n) === b.slice(0, n)) {
+      return `${a}${b.slice(n)}`.slice(-max);
+    }
+  }
+  return `${a} ${b}`.trim().slice(-max);
+}
+
 /** Parent wants a human / staff member rather than (or in addition to) Maya. */
 export function isStaffTalkRequest(text: string) {
   const t = text.toLowerCase().trim();

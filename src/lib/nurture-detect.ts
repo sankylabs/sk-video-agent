@@ -1,14 +1,16 @@
 import { classifyLocation } from "./locations";
+import { mayaActionNote } from "./lead-notes";
 import type { QualifyContext } from "./qualify";
+import { isBirthdayAgeQuestion, isBirthdayInquiry } from "./staff-outreach";
 
-export type NurtureReason = "later" | "too-young";
+export type NurtureReason = "later" | "too-young" | "too-old";
 
 export type NurtureHit = {
   reason: NurtureReason;
   detail: string;
 };
 
-const NURTURE_MARKER_RE = /\[NURTURE:(later|too-young)\]/gi;
+const NURTURE_MARKER_RE = /\[NURTURE:(later|too-young|too-old)\]/gi;
 
 export function extractNurtureReason(text: string): NurtureReason | null {
   const matches = [...text.matchAll(NURTURE_MARKER_RE)];
@@ -18,7 +20,7 @@ export function extractNurtureReason(text: string): NurtureReason | null {
 }
 
 export function stripNurtureMarkers(text: string) {
-  return text.replace(/\s*\[NURTURE:(later|too-young)\]\s*/gi, " ").trim();
+  return text.replace(/\s*\[NURTURE:(later|too-young|too-old)\]\s*/gi, " ").trim();
 }
 
 /** Later today / this week — they still want a slot, not a deferral. */
@@ -102,16 +104,37 @@ export function detectNurture(input: {
   const blob = `${user}\n${replica}`;
   const marker = extractNurtureReason(blob);
   const age = input.qualify.age;
+  const birthdayTalk =
+    isBirthdayInquiry(user) || isBirthdayAgeQuestion(replica);
 
-  if (age != null && age > 14) return null;
+  if (age != null && age > 14) {
+    return {
+      reason: "too-old",
+      detail: `child is ${age} (over 14); no age-appropriate program now — reach out later`,
+    };
+  }
+  if (marker === "too-old") {
+    return {
+      reason: "too-old",
+      detail:
+        age != null
+          ? `child is ${age} (over 14); no age-appropriate program now — reach out later`
+          : "child is over 14; no age-appropriate program now — reach out later",
+    };
+  }
 
-  if (age != null && age < 5 && looksNurtureTooYoung(user, replica)) {
+  if (
+    age != null &&
+    age < 5 &&
+    !birthdayTalk &&
+    looksNurtureTooYoung(user, replica)
+  ) {
     return {
       reason: "too-young",
       detail: `child is ${age} (under 5) and the family wants to stay in touch / come later`,
     };
   }
-  if (marker === "too-young" && (age == null || age < 5)) {
+  if (marker === "too-young" && !birthdayTalk && (age == null || age < 5)) {
     return {
       reason: "too-young",
       detail:
@@ -134,5 +157,11 @@ export function detectNurture(input: {
 }
 
 export function mayaNurtureNote(hit: NurtureHit, channel: "chat" | "video") {
-  return `[maya] Nurturing (${channel}): ${hit.detail}.`;
+  const action =
+    hit.reason === "too-old"
+      ? "nurture-too-old"
+      : hit.reason === "too-young"
+        ? "nurture-too-young"
+        : "nurture-later";
+  return mayaActionNote(action, channel, hit.detail);
 }

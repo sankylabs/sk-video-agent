@@ -1,6 +1,8 @@
 import { classifyLocation } from "./locations";
+import { mayaActionNote } from "./lead-notes";
 import { looksNurtureTooYoung } from "./nurture-detect";
 import type { QualifyContext } from "./qualify";
+import { isBirthdayAgeQuestion, isBirthdayInquiry } from "./staff-outreach";
 
 export type UnqualifiedReason = "age" | "distance";
 
@@ -58,20 +60,28 @@ export function detectUnqualified(input: {
   const replica = input.replicaText?.trim() || "";
   const marker = extractUnqualifiedReason(`${user}\n${replica}`);
   const age = input.qualify.age;
+  const birthdayTalk =
+    isBirthdayInquiry(user) || isBirthdayAgeQuestion(replica);
 
   if (age != null && age > 14) {
+    return null;
+  }
+  if (
+    age != null &&
+    age < 5 &&
+    !birthdayTalk &&
+    !looksNurtureTooYoung(user, replica)
+  ) {
     return {
       reason: "age",
       detail: `child's age is ${age} (outside 5–14)`,
     };
   }
-  if (age != null && age < 5 && !looksNurtureTooYoung(user, replica)) {
-    return {
-      reason: "age",
-      detail: `child's age is ${age} (outside 5–14)`,
-    };
-  }
-  if (marker === "age" && (age == null || age > 14 || !looksNurtureTooYoung(user, replica))) {
+  if (
+    marker === "age" &&
+    !birthdayTalk &&
+    (age == null || (age < 5 && !looksNurtureTooYoung(user, replica)))
+  ) {
     return {
       reason: "age",
       detail: "child's age is outside 5–14",
@@ -98,5 +108,9 @@ export function mayaUnqualifiedNote(
   hit: UnqualifiedHit,
   channel: "chat" | "video",
 ) {
-  return `[maya] Unqualified (${channel}): ${hit.detail}.`;
+  return mayaActionNote(
+    hit.reason === "distance" ? "unqualified-distance" : "unqualified-age",
+    channel,
+    hit.detail,
+  );
 }

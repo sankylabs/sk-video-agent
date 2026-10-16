@@ -119,6 +119,28 @@ export function isRescheduleRequest(text: string) {
   );
 }
 
+/** Parent is signing off — keep the reply to a short goodbye. */
+export function isGoodbye(text: string) {
+  const t = text.toLowerCase().trim();
+  if (!t) return false;
+  if (t.length > 80) return false;
+  if (
+    /\bsee you\b/.test(t) &&
+    /\b(book|friday|saturday|sunday|monday|tuesday|wednesday|thursday|\d\s*(am|pm)|o'?clock)\b/.test(
+      t,
+    )
+  ) {
+    return false;
+  }
+  return (
+    /^(thanks|thank you)[.! ]*(bye|goodbye)[.! ]*$/.test(t) ||
+    /\b(bye|goodbye|good night|gotta go|got to go|i'?m all set|that'?s all( for now)?)\b/.test(
+      t,
+    ) ||
+    /^(that'?s (all|it)|i'?m good|see you|talk later)[.! ]*$/.test(t)
+  );
+}
+
 export function isCancelRequest(text: string) {
   const t = text.toLowerCase().trim();
   if (!t) return false;
