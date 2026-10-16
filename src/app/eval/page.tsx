@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { readLastEvalRun, type EvalLastRun } from "@/lib/eval-results";
 import { siteConfig } from "@/lib/config";
+import { noindexMetadata } from "@/lib/noindex";
 
 export const dynamic = "force-dynamic";
+export const metadata = noindexMetadata;
 
 function formatWhen(iso: string) {
   try {

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { MayaReport } from "@/components/MayaReport";
 import { siteConfig } from "@/lib/config";
+import { noindexMetadata } from "@/lib/noindex";
 
 export const dynamic = "force-dynamic";
+export const metadata = noindexMetadata;
 
 export default function MayaReportPage() {
   return (
