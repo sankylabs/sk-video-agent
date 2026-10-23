@@ -19,7 +19,7 @@ export default async function EventsPage() {
     <EventsFrame
       kicker="Kirkland academy"
       title="Events"
-      lede="Upcoming workshops and family days. Past events stay here after they’re over."
+      lede="Upcoming workshops and family days."
     >
       <EventsBrowser upcoming={upcoming} past={past} />
     </EventsFrame>
