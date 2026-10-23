@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { SiteHeader } from "@/components/SiteHeader";
 import { SteamojiVideos } from "@/components/SteamojiVideos";
 import { siteConfig } from "@/lib/config";
 
@@ -28,28 +29,7 @@ const FEATURES = [
 export default function HomePage() {
   return (
     <main className="home">
-      <header className="home-bar">
-        <div className="home-wrap home-bar-inner">
-          <a className="home-lockup" href="/">
-            <span className="home-seal home-seal-sm">
-              <Image
-                src="/steamoji-kirkland-logo.png"
-                alt=""
-                fill
-                sizes="48px"
-                priority
-              />
-            </span>
-            <span className="home-lockup-text">
-              <span className="home-lockup-brand">{siteConfig.brand}</span>
-              <span className="home-lockup-place">Kirkland, Washington</span>
-            </span>
-          </a>
-          <a className="home-bar-cta" href={siteConfig.freeSessionUrl}>
-            Book a free session
-          </a>
-        </div>
-      </header>
+      <SiteHeader />
 
       <section className="home-hero">
         <div className="home-wrap home-hero-inner">

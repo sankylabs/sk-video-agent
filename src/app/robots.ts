@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/maya", "/maya/", "/eval", "/eval/"],
+      disallow: ["/maya", "/maya/", "/eval", "/eval/", "/events/manage", "/events/manage/"],
     },
   };
 }
