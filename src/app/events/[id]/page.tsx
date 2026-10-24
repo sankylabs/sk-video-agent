@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventRegisterForm } from "@/components/EventRegisterForm";
 import { EventsFrame } from "@/components/EventsFrame";
-import { siteConfig } from "@/lib/config";
+import { pageShare, siteConfig } from "@/lib/config";
 import { getPublicEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
@@ -16,11 +16,18 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const event = await getPublicEvent(id);
-  if (!event) return { title: "Event · Steamoji Kirkland" };
-  return {
+  if (!event) {
+    return pageShare({
+      title: "Event · Steamoji Kirkland",
+      description: "Events at Steamoji Kirkland.",
+      path: "/events",
+    });
+  }
+  return pageShare({
     title: `${event.title} · Steamoji Kirkland`,
     description: event.description.slice(0, 180),
-  };
+    path: `/events/${event.id}`,
+  });
 }
 
 export default async function EventDetailPage({

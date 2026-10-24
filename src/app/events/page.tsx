@@ -1,16 +1,19 @@
-import type { Metadata } from "next";
 import { EventsBrowser } from "@/components/EventsBrowser";
 import { EventsFrame } from "@/components/EventsFrame";
+import { pageShare } from "@/lib/config";
 import { splitEvents } from "@/lib/event-model";
 import { listPublicEvents } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+const eventsDescription =
+  "Upcoming and past events at Steamoji Kirkland. See the date, time, cost, and register your family.";
+
+export const metadata = pageShare({
   title: "Events · Steamoji Kirkland",
-  description:
-    "Upcoming and past events at Steamoji Kirkland. See the date, time, cost, and register your family.",
-};
+  description: eventsDescription,
+  path: "/events",
+});
 
 export default async function EventsPage() {
   const { upcoming, past } = splitEvents(await listPublicEvents());

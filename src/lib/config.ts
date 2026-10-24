@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 export const siteConfig = {
   brand: "Steamoji Kirkland",
   personaName: "Maya",
@@ -14,6 +16,39 @@ export const siteConfig = {
   hours: "Mon–Fri 2pm–7pm · Sat 10am–7pm · Sun closed",
   ages: "Ages 5–14",
 } as const;
+
+const shareImage = {
+  url: "/steamoji-kirkland-logo.png",
+  width: 1024,
+  height: 1024,
+  alt: "Steamoji Kirkland",
+} as const;
+
+/** Share-card text for a public page. Replaces the site-wide Maya preview. */
+export function pageShare(input: {
+  title: string;
+  description: string;
+  path: string;
+}): Metadata {
+  return {
+    title: input.title,
+    description: input.description,
+    openGraph: {
+      title: input.title,
+      description: input.description,
+      url: input.path,
+      siteName: siteConfig.brand,
+      type: "website",
+      images: [shareImage],
+    },
+    twitter: {
+      card: "summary",
+      title: input.title,
+      description: input.description,
+      images: [shareImage.url],
+    },
+  };
+}
 
 export function trialUrl(leadId?: string) {
   const url = new URL(siteConfig.freeSessionUrl);
