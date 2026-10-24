@@ -52,6 +52,7 @@ export default async function EventDetailPage({
           <div className="event-card-top">
             <p className="event-cost">{event.costLabel}</p>
             {event.past ? <p className="event-closed">Registration closed</p> : null}
+            {event.soldOut && !event.past ? <p className="event-soldout">Sold out</p> : null}
           </div>
           <p className="event-when">
             <span>{event.dateLabel}</span>
@@ -63,6 +64,8 @@ export default async function EventDetailPage({
             <p className="event-closed-note">
               This event has passed, so registration is closed.
             </p>
+          ) : event.soldOut ? (
+            <p className="event-closed-note">This event is sold out.</p>
           ) : (
             <EventRegisterForm eventId={event.id} title={event.title} />
           )}

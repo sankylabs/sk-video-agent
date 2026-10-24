@@ -4,12 +4,16 @@ import path from "path";
 import {
   dollarsToCents,
   isPastEvent,
+  isSoldOut,
   pacificRangeToIso,
+  parseCapacity,
+  spotsTakenFor,
   toDirectorEvent,
   toPublicEvent,
   type AcademyEvent,
   type DirectorEventView,
   type EventRegistration,
+  type EventStatus,
   type PublicEvent,
 } from "./event-model";
 
@@ -174,17 +178,44 @@ function seedRecords(nowIso: string): AcademyEvent[] {
     startsAt: event.startsAt,
     endsAt: event.endsAt,
     posterFile: `${event.id}.svg`,
+    capacity: null,
+    status: "published",
     createdAt: nowIso,
     updatedAt: nowIso,
   }));
+}
+
+function normalizeEvent(event: Partial<AcademyEvent>): AcademyEvent | null {
+  if (!event.id || !event.startsAt || !event.endsAt) return null;
+  const capacity =
+    typeof event.capacity === "number" && event.capacity >= 1
+      ? Math.floor(event.capacity)
+      : null;
+  return {
+    id: event.id,
+    title: event.title || "Untitled event",
+    description: event.description || "",
+    costCents: event.costCents ?? 0,
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    capacity,
+    status: event.status === "draft" ? "draft" : "published",
+    posterFile: event.posterFile,
+    createdAt: event.createdAt || event.startsAt,
+    updatedAt: event.updatedAt || event.createdAt || event.startsAt,
+  };
 }
 
 async function readEventsUnlocked(): Promise<AcademyEvent[]> {
   await fs.mkdir(dataDir, { recursive: true });
   try {
     const raw = await fs.readFile(eventsFile, "utf8");
-    const parsed = JSON.parse(raw) as AcademyEvent[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(raw) as Partial<AcademyEvent>[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((event) => {
+      const normalized = normalizeEvent(event);
+      return normalized ? [normalized] : [];
+    });
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") return [];
@@ -282,25 +313,68 @@ export function readEventForm(form: FormData) {
   }
   const range = pacificRangeToIso(date, startTime, endTime, endsNextDay);
   if ("error" in range) throw new EventInputError(range.error);
+  const capacityRaw = form.get("capacity");
+  const capacityProvided = typeof capacityRaw === "string";
+  const parsedCapacity = parseCapacity(capacityProvided ? capacityRaw : "");
+  if ("error" in parsedCapacity) throw new EventInputError(parsedCapacity.error);
+  const intent = String(form.get("intent") || "");
+  if (intent !== "draft" && intent !== "publish") {
+    throw new EventInputError("Choose save draft or publish.");
+  }
+  const status: EventStatus = intent === "publish" ? "published" : "draft";
   return {
     title,
     description,
     costCents,
     startsAt: range.startsAt,
     endsAt: range.endsAt,
+    capacity: parsedCapacity.capacity,
+    capacityProvided,
+    status,
     poster: readPosterUpload(form.get("poster")),
   };
 }
 
+function capacityForUpdate(
+  current: AcademyEvent,
+  input: { endsAt: string; capacity: number | null; capacityProvided: boolean },
+) {
+  const endedBefore = isPastEvent(current);
+  const endedAfter = isPastEvent({ endsAt: input.endsAt });
+  if (!endedBefore || !endedAfter) return input.capacity;
+  if (input.capacityProvided && input.capacity !== current.capacity) {
+    throw new EventInputError("The spot limit is locked because this event has ended.");
+  }
+  return current.capacity;
+}
+
 export async function listPublicEvents(now = new Date()): Promise<PublicEvent[]> {
-  const events = await withLock(readEventsUnlocked);
-  return events.map((event) => toPublicEvent(event, now));
+  return withLock(async () => {
+    const [events, registrations] = await Promise.all([
+      readEventsUnlocked(),
+      readRegistrationsUnlocked(),
+    ]);
+    return events
+      .filter((event) => event.status === "published")
+      .map((event) => toPublicEvent(event, spotsTakenFor(registrations, event.id), now));
+  });
 }
 
 export async function getPublicEvent(id: string, now = new Date()) {
-  const events = await withLock(readEventsUnlocked);
-  const event = events.find((item) => item.id === id);
-  return event ? toPublicEvent(event, now) : null;
+  return withLock(async () => {
+    const [events, registrations] = await Promise.all([
+      readEventsUnlocked(),
+      readRegistrationsUnlocked(),
+    ]);
+    const event = events.find((item) => item.id === id);
+    if (!event || event.status !== "published") return null;
+    return toPublicEvent(event, spotsTakenFor(registrations, event.id), now);
+  });
+}
+
+export async function getDirectorEvent(id: string, now = new Date()) {
+  const events = await listDirectorEvents(now);
+  return events.find((event) => event.id === id) ?? null;
 }
 
 export async function listDirectorEvents(now = new Date()): Promise<DirectorEventView[]> {
@@ -356,6 +430,8 @@ export async function createEvent(form: FormData) {
       title: input.title,
       description: input.description,
       costCents: input.costCents,
+      capacity: input.capacity,
+      status: input.status,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       posterFile,
@@ -364,7 +440,7 @@ export async function createEvent(form: FormData) {
     };
     events.push(event);
     await atomicWrite(eventsFile, events);
-    return toPublicEvent(event);
+    return toDirectorEvent(event, [], new Date());
   });
 }
 
@@ -386,6 +462,8 @@ export async function updateEvent(id: string, form: FormData) {
       title: input.title,
       description: input.description,
       costCents: input.costCents,
+      capacity: capacityForUpdate(current, input),
+      status: input.status,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       posterFile,
@@ -393,7 +471,8 @@ export async function updateEvent(id: string, form: FormData) {
     };
     events[index] = event;
     await atomicWrite(eventsFile, events);
-    return toPublicEvent(event);
+    const registrations = await readRegistrationsUnlocked();
+    return toDirectorEvent(event, registrations, new Date());
   });
 }
 
@@ -428,11 +507,27 @@ export async function registerForEvent(
   return withLock(async () => {
     const events = await readEventsUnlocked();
     const event = events.find((item) => item.id === eventId);
-    if (!event) return { error: "That event is no longer listed.", status: 404 as const };
+    if (!event || event.status !== "published") {
+      return { error: "That event is no longer listed.", status: 404 as const };
+    }
     if (isPastEvent(event)) {
       return { error: "Registration is closed for this event.", status: 409 as const };
     }
     const registrations = await readRegistrationsUnlocked();
+    if (event.capacity != null) {
+      const taken = spotsTakenFor(registrations, event.id);
+      const incoming = input.kids.length;
+      if (isSoldOut(event.capacity, taken)) {
+        return { error: "This event is sold out.", status: 409 as const };
+      }
+      if (taken + incoming > event.capacity) {
+        const left = event.capacity - taken;
+        return {
+          error: left === 1 ? "Only 1 spot is left." : `Only ${left} spots are left.`,
+          status: 409 as const,
+        };
+      }
+    }
     const registration: EventRegistration = {
       id: nanoid(10),
       eventId,

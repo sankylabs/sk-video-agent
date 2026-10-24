@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { EventDirector } from "@/components/EventDirector";
+import { DirectorBoard } from "@/components/DirectorBoard";
+import { DirectorGate } from "@/components/DirectorGate";
 import { EventsFrame } from "@/components/EventsFrame";
 import {
   eventsDirectorAuthRequired,
   eventsDirectorSecret,
   isEventsDirectorAuthed,
 } from "@/lib/event-auth";
+import { groupDirectorEvents, paginate } from "@/lib/event-model";
 import { listDirectorEvents } from "@/lib/events";
 import { noindexMetadata } from "@/lib/noindex";
 
@@ -16,22 +18,37 @@ export const metadata: Metadata = {
   title: "Director · Steamoji Kirkland",
 };
 
-export default async function EventsManagePage() {
+export default async function EventsManagePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; drafts?: string; past?: string; notice?: string }>;
+}) {
   const authed = await isEventsDirectorAuthed();
-  const events = authed ? await listDirectorEvents() : [];
+  const params = await searchParams;
+  const grouped = groupDirectorEvents(authed ? await listDirectorEvents() : []);
+  const published = paginate(grouped.publishedCurrent, params.page);
+  const drafts = paginate(grouped.drafts, params.drafts);
+  const completed = paginate(grouped.completed, params.past);
 
   return (
     <EventsFrame
       kicker="Academy staff"
       title="Director"
-      lede="Add events, update the poster and cost, and see which families registered."
+      lede="Published events and their registrations come first. Drafts stay internal until you publish."
     >
-      <EventDirector
-        initialAuthed={authed}
-        initialOpenLocally={authed && !eventsDirectorSecret()}
-        initialNeedsSetup={!authed && eventsDirectorAuthRequired() && !eventsDirectorSecret()}
-        initialEvents={events}
-      />
+      <DirectorGate
+        authed={authed}
+        needsSetup={!authed && eventsDirectorAuthRequired() && !eventsDirectorSecret()}
+        openLocally={authed && !eventsDirectorSecret()}
+      >
+        <DirectorBoard
+          published={{ ...published, param: "page" }}
+          drafts={{ ...drafts, param: "drafts" }}
+          completed={{ ...completed, param: "past" }}
+          query={{ page: params.page, drafts: params.drafts, past: params.past }}
+          notice={params.notice}
+        />
+      </DirectorGate>
     </EventsFrame>
   );
 }

@@ -1,5 +1,7 @@
 export const EVENT_TIME_ZONE = "America/Los_Angeles";
 
+export type EventStatus = "draft" | "published";
+
 export type AcademyEvent = {
   id: string;
   title: string;
@@ -9,6 +11,9 @@ export type AcademyEvent = {
   startsAt: string;
   /** ISO timestamp. */
   endsAt: string;
+  /** Child spots. Null means no limit. */
+  capacity: number | null;
+  status: EventStatus;
   /** Basename inside .data/posters. */
   posterFile?: string;
   createdAt: string;
@@ -41,6 +46,9 @@ export type PublicEvent = {
   dateLabel: string;
   timeLabel: string;
   past: boolean;
+  capacity: number | null;
+  spotsTaken: number;
+  soldOut: boolean;
   posterUrl: string;
 };
 
@@ -55,13 +63,17 @@ export type RegistrationView = {
 };
 
 export type DirectorEventView = PublicEvent & {
+  status: EventStatus;
   costInput: string;
+  capacityInput: string;
   date: string;
   startTime: string;
   endTime: string;
   endsNextDay: boolean;
   registrations: RegistrationView[];
 };
+
+export const DIRECTOR_PAGE_SIZE = 15;
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: EVENT_TIME_ZONE,
@@ -224,8 +236,55 @@ export function isPastEvent(event: Pick<AcademyEvent, "endsAt">, now = new Date(
   return new Date(event.endsAt).getTime() <= now.getTime();
 }
 
-export function toPublicEvent(event: AcademyEvent, now = new Date()): PublicEvent {
+export function spotsTakenFor(
+  registrations: Pick<EventRegistration, "eventId" | "kids">[],
+  eventId: string,
+) {
+  return registrations.reduce(
+    (sum, registration) =>
+      registration.eventId === eventId ? sum + registration.kids.length : sum,
+    0,
+  );
+}
+
+export function isSoldOut(capacity: number | null, taken: number) {
+  return capacity != null && taken >= capacity;
+}
+
+export function parseCapacity(raw: string): { capacity: number | null } | { error: string } {
+  const value = raw.trim();
+  if (!value) return { capacity: null };
+  if (!/^\d+$/.test(value)) {
+    return { error: "Spot limit must be a whole number, or leave it blank for no limit." };
+  }
+  const spots = Number(value);
+  if (spots < 1 || spots > 5000) {
+    return { error: "Spot limit must be between 1 and 5,000, or blank for no limit." };
+  }
+  return { capacity: spots };
+}
+
+export function paginate<T>(items: T[], pageRaw: string | undefined) {
+  const total = items.length;
+  const pages = Math.max(1, Math.ceil(total / DIRECTOR_PAGE_SIZE));
+  const requested = Number(pageRaw);
+  const page = Number.isInteger(requested) && requested > 0 ? Math.min(pages, requested) : 1;
+  const start = (page - 1) * DIRECTOR_PAGE_SIZE;
+  return {
+    items: items.slice(start, start + DIRECTOR_PAGE_SIZE),
+    page,
+    pages,
+    total,
+  };
+}
+
+export function toPublicEvent(
+  event: AcademyEvent,
+  spotsTaken: number,
+  now = new Date(),
+): PublicEvent {
   const schedule = formatEventSchedule(event.startsAt, event.endsAt);
+  const capacity = event.capacity ?? null;
   return {
     id: event.id,
     title: event.title,
@@ -237,6 +296,9 @@ export function toPublicEvent(event: AcademyEvent, now = new Date()): PublicEven
     dateLabel: schedule.dateLabel,
     timeLabel: schedule.timeLabel,
     past: isPastEvent(event, now),
+    capacity,
+    spotsTaken,
+    soldOut: isSoldOut(capacity, spotsTaken),
     posterUrl: `/api/events/poster/${event.id}`,
   };
 }
@@ -248,9 +310,12 @@ export function toDirectorEvent(
 ): DirectorEventView {
   const start = pacificParts(event.startsAt);
   const end = pacificParts(event.endsAt);
+  const taken = spotsTakenFor(registrations, event.id);
   return {
-    ...toPublicEvent(event, now),
+    ...toPublicEvent(event, taken, now),
+    status: event.status === "draft" ? "draft" : "published",
     costInput: centsToDollarInput(event.costCents),
+    capacityInput: event.capacity == null ? "" : String(event.capacity),
     date: start.date,
     startTime: start.time,
     endTime: end.time,
@@ -280,4 +345,22 @@ export function splitEvents<T extends { startsAt: string; endsAt: string; past: 
     .filter((event) => event.past)
     .sort((a, b) => b.endsAt.localeCompare(a.endsAt));
   return { upcoming, past };
+}
+
+export function groupDirectorEvents(events: DirectorEventView[]) {
+  const byStart = (a: DirectorEventView, b: DirectorEventView) =>
+    a.startsAt.localeCompare(b.startsAt);
+  const publishedCurrent = events
+    .filter((event) => event.status === "published" && !event.past)
+    .sort(byStart);
+  const drafts = events
+    .filter((event) => event.status === "draft")
+    .sort((a, b) => {
+      if (a.past !== b.past) return a.past ? 1 : -1;
+      return byStart(a, b);
+    });
+  const completed = events
+    .filter((event) => event.status === "published" && event.past)
+    .sort((a, b) => b.endsAt.localeCompare(a.endsAt));
+  return { publishedCurrent, drafts, completed };
 }

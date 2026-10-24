@@ -2422,6 +2422,16 @@ button:disabled {
   color: var(--brand-blue);
 }
 
+.event-draft {
+  background: var(--brand-yellow-soft);
+  color: var(--brand-ink);
+}
+
+.event-soldout {
+  background: var(--brand-red);
+  color: var(--brand-white);
+}
+
 .event-card h2,
 .event-form h2,
 .event-login h2,
@@ -2627,6 +2637,75 @@ button:disabled {
 .director {
   display: grid;
   gap: 1.25rem;
+}
+
+.director-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.director-section-head {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.director-toolbar h2,
+.director-section h2,
+.director-event h3 {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 400;
+}
+
+.director-toolbar p,
+.director-section-head p,
+.event-spots {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+}
+
+.director-add {
+  margin-top: 0;
+}
+
+.director-section {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.director-section.is-quiet {
+  opacity: 0.96;
+}
+
+.director-section.is-quiet .director-event {
+  box-shadow: none;
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.pager .event-secondary,
+.director-actions .event-secondary,
+.director-actions .event-register,
+.director-actions .event-text-btn {
+  margin-top: 0;
+}
+
+.event-secondary.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.event-check-field {
+  align-self: end;
+  min-height: 2.8rem;
 }
 
 .director-note {
