@@ -109,6 +109,8 @@ const SEED_EVENTS: Array<Omit<AcademyEvent, "posterFile" | "createdAt" | "update
     description:
       "Spend a Saturday morning in the makerspace with your child. Families build a small kinetic sculpture together, then take it home. Best for ages 5–12. Snacks included.",
     costCents: 2500,
+    capacity: null,
+    status: "published",
     startsAt: "2026-11-07T18:00:00.000Z",
     endsAt: "2026-11-07T20:30:00.000Z",
     poster: {
@@ -124,6 +126,8 @@ const SEED_EVENTS: Array<Omit<AcademyEvent, "posterFile" | "createdAt" | "update
     description:
       "Students demo the robots they have been building, then visitors try a short drive-and-code challenge. Come watch, cheer, and see what a session at Steamoji feels like. Ages 6–14.",
     costCents: 0,
+    capacity: null,
+    status: "published",
     startsAt: "2026-11-21T21:00:00.000Z",
     endsAt: "2026-11-22T00:00:00.000Z",
     poster: {
@@ -139,6 +143,8 @@ const SEED_EVENTS: Array<Omit<AcademyEvent, "posterFile" | "createdAt" | "update
     description:
       "Neighbors toured the Kirkland academy, met mentors, and tried a mini build station. A look at how families get started with a free session.",
     costCents: 0,
+    capacity: null,
+    status: "published",
     startsAt: "2026-09-12T17:00:00.000Z",
     endsAt: "2026-09-12T20:00:00.000Z",
     poster: {
