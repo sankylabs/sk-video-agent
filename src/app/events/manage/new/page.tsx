@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { DirectorGate } from "@/components/DirectorGate";
 import { EventEditor } from "@/components/EventEditor";
-import { EventsFrame } from "@/components/EventsFrame";
 import {
   eventsDirectorAuthRequired,
   eventsDirectorSecret,
@@ -20,18 +19,12 @@ export default async function NewEventPage() {
   const authed = await isEventsDirectorAuthed();
 
   return (
-    <EventsFrame
-      kicker="Academy staff"
-      title="Add new event"
-      lede="Save a draft to keep it internal, or publish it so families can see it and register."
+    <DirectorGate
+      authed={authed}
+      needsSetup={!authed && eventsDirectorAuthRequired() && !eventsDirectorSecret()}
+      openLocally={authed && !eventsDirectorSecret()}
     >
-      <DirectorGate
-        authed={authed}
-        needsSetup={!authed && eventsDirectorAuthRequired() && !eventsDirectorSecret()}
-        openLocally={authed && !eventsDirectorSecret()}
-      >
-        <EventEditor event={null} />
-      </DirectorGate>
-    </EventsFrame>
+      <EventEditor event={null} />
+    </DirectorGate>
   );
 }

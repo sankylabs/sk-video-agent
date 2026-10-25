@@ -38,6 +38,12 @@ export function eventsDirectorCookieHeader(secret: string) {
   return parts.join("; ");
 }
 
+export function eventsDirectorClearCookieHeader() {
+  const parts = [`${COOKIE}=`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
+  if (process.env.NODE_ENV === "production") parts.push("Secure");
+  return parts.join("; ");
+}
+
 export function checkEventsDirectorPassword(provided: string) {
   const secret = eventsDirectorSecret();
   if (!secret) return !eventsDirectorAuthRequired();

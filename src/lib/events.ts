@@ -520,19 +520,8 @@ export async function registerForEvent(
       return { error: "Registration is closed for this event.", status: 409 as const };
     }
     const registrations = await readRegistrationsUnlocked();
-    if (event.capacity != null) {
-      const taken = spotsTakenFor(registrations, event.id);
-      const incoming = input.kids.length;
-      if (isSoldOut(event.capacity, taken)) {
-        return { error: "This event is sold out.", status: 409 as const };
-      }
-      if (taken + incoming > event.capacity) {
-        const left = event.capacity - taken;
-        return {
-          error: left === 1 ? "Only 1 spot is left." : `Only ${left} spots are left.`,
-          status: 409 as const,
-        };
-      }
+    if (event.capacity != null && isSoldOut(event.capacity, spotsTakenFor(registrations, event.id))) {
+      return { error: "This event is sold out.", status: 409 as const };
     }
     const registration: EventRegistration = {
       id: nanoid(10),

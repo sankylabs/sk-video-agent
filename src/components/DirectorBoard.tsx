@@ -160,12 +160,47 @@ function DirectorEventCard({ event }: { event: DirectorEventView }) {
           </div>
         </div>
       </div>
-      <RegistrationList registrations={event.registrations} />
+      <RegistrationList title={event.title} registrations={event.registrations} />
     </article>
   );
 }
 
-function RegistrationList({ registrations }: { registrations: RegistrationView[] }) {
+function csvCell(value: string) {
+  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
+function registrationsCsv(registrations: RegistrationView[]) {
+  const header = ["First name", "Last name", "Email", "Children", "Submitted"];
+  const lines = registrations.map((registration) =>
+    [
+      registration.firstName,
+      registration.lastName,
+      registration.email,
+      registration.kids.map((kid) => `${kid.name} (age ${kid.age})`).join("; "),
+      registration.submittedLabel,
+    ]
+      .map(csvCell)
+      .join(","),
+  );
+  return `\uFEFF${[header.join(","), ...lines].join("\r\n")}`;
+}
+
+function csvFilename(title: string) {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `${slug || "event"}-registrations.csv`;
+}
+
+function RegistrationList({
+  title,
+  registrations,
+}: {
+  title: string;
+  registrations: RegistrationView[];
+}) {
   const [page, setPage] = useState(1);
   const pages = Math.max(1, Math.ceil(registrations.length / DIRECTOR_PAGE_SIZE));
   const safePage = Math.min(page, pages);
@@ -174,30 +209,61 @@ function RegistrationList({ registrations }: { registrations: RegistrationView[]
     safePage * DIRECTOR_PAGE_SIZE,
   );
 
+  function exportCsv() {
+    const blob = new Blob([registrationsCsv(registrations)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = csvFilename(title);
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="director-regs">
-      <h4>
-        {registrations.length === 1
-          ? "1 registration"
-          : `${registrations.length} registrations`}
-      </h4>
+      <div className="regs-head">
+        <h4>
+          {registrations.length === 1
+            ? "1 registration"
+            : `${registrations.length} registrations`}
+        </h4>
+        {registrations.length > 0 ? (
+          <button className="event-secondary" type="button" onClick={exportCsv}>
+            Export CSV
+          </button>
+        ) : null}
+      </div>
       {registrations.length === 0 ? (
         <p>No registrations yet.</p>
       ) : (
-        <ul>
-          {visible.map((registration) => (
-            <li key={registration.id}>
-              <strong>
-                {registration.firstName} {registration.lastName}
-              </strong>
-              <span>{registration.email}</span>
-              <span>{registration.submittedLabel}</span>
-              <span>
-                {registration.kids.map((kid) => `${kid.name}, age ${kid.age}`).join(" · ")}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="regs-scroll">
+          <table className="regs-table">
+            <thead>
+              <tr>
+                <th scope="col">First name</th>
+                <th scope="col">Last name</th>
+                <th scope="col">Email</th>
+                <th scope="col">Children</th>
+                <th scope="col">Submitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((registration) => (
+                <tr key={registration.id}>
+                  <td>{registration.firstName}</td>
+                  <td>{registration.lastName}</td>
+                  <td>{registration.email}</td>
+                  <td>
+                    {registration.kids.map((kid) => `${kid.name}, age ${kid.age}`).join(" · ")}
+                  </td>
+                  <td>{registration.submittedLabel}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {pages > 1 ? (
         <div className="pager">

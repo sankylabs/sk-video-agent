@@ -65,6 +65,11 @@ export default async function EventDetailPage({
             <span>{event.dateLabel}</span>
             <span>{event.timeLabel}</span>
           </p>
+          {event.capacity != null ? (
+            <p className="event-spots">
+              {event.spotsTaken} of {event.capacity} spots filled
+            </p>
+          ) : null}
           <p className="event-location">{siteConfig.address}</p>
           <p className="event-full">{event.description}</p>
           {event.past ? (

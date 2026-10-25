@@ -11,7 +11,7 @@ export type AcademyEvent = {
   startsAt: string;
   /** ISO timestamp. */
   endsAt: string;
-  /** Child spots. Null means no limit. */
+  /** Registration spots. Null means no limit. One registration uses one spot. */
   capacity: number | null;
   status: EventStatus;
   /** Basename inside .data/posters. */
@@ -237,12 +237,11 @@ export function isPastEvent(event: Pick<AcademyEvent, "endsAt">, now = new Date(
 }
 
 export function spotsTakenFor(
-  registrations: Pick<EventRegistration, "eventId" | "kids">[],
+  registrations: Pick<EventRegistration, "eventId">[],
   eventId: string,
 ) {
   return registrations.reduce(
-    (sum, registration) =>
-      registration.eventId === eventId ? sum + registration.kids.length : sum,
+    (sum, registration) => (registration.eventId === eventId ? sum + 1 : sum),
     0,
   );
 }

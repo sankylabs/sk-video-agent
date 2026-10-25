@@ -7,21 +7,26 @@ export function EventsFrame({
   kicker,
   title,
   lede,
+  aside,
   children,
 }: {
   kicker: string;
   title: string;
   lede: string;
+  aside?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <main className="home">
       <SiteHeader active="events" />
       <section className="events-hero">
-        <div className="home-wrap">
-          <p className="home-kicker">{kicker}</p>
-          <h1>{title}</h1>
-          <p>{lede}</p>
+        <div className="home-wrap events-hero-bar">
+          <div className="events-hero-copy">
+            <p className="home-kicker">{kicker}</p>
+            <h1>{title}</h1>
+            <p>{lede}</p>
+          </div>
+          {aside ? <div className="events-hero-aside">{aside}</div> : null}
         </div>
       </section>
       <div className="home-body">
@@ -34,7 +39,6 @@ export function EventsFrame({
           </div>
           <div className="home-foot-links">
             <Link href="/events">All events</Link>
-            <Link href="/events/manage">Director</Link>
             <a href={`mailto:${siteConfig.email}`}>{siteConfig.email}</a>
           </div>
         </footer>
