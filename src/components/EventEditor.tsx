@@ -91,9 +91,9 @@ export function EventEditor({ event }: { event: DirectorEventView | null }) {
 
   const spotNote = event
     ? event.capacity == null
-      ? `${event.spotsTaken} ${event.spotsTaken === 1 ? "registration" : "registrations"}. No spot limit yet.`
+      ? `${event.spotsTaken} ${event.spotsTaken === 1 ? "child" : "children"} registered. No spot limit yet.`
       : `${event.spotsTaken} of ${event.capacity} spots filled.`
-    : "Each registration takes one spot, even when a family adds more than one child. Leave this blank for no limit.";
+    : "Each child takes one spot. Leave this blank for no limit.";
 
   return (
     <form className="event-form director-form" onSubmit={onSubmit}>
