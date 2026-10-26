@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import type { PublicEvent } from "@/lib/event-model";
@@ -48,14 +47,10 @@ export function EventsBrowser({
         <div className="events-list">
           {events.map((event) => (
             <article key={event.id} className="event-card">
-              <Link className="event-poster" href={`/events/${event.id}`}>
-                <Image
-                  src={event.posterUrl}
-                  alt=""
-                  fill
-                  sizes="(max-width: 800px) 100vw, 220px"
-                  unoptimized
-                />
+              <Link className="event-poster" href={`/events/${event.id}`} aria-label={event.title}>
+                {/* The card should show the whole flyer, not a cropped frame. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={event.posterUrl} alt="" />
               </Link>
               <div className="event-card-body">
                 <div className="event-card-top">

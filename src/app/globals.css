@@ -2406,6 +2406,20 @@ button:disabled {
   object-fit: cover;
 }
 
+.event-card .event-poster {
+  align-self: start;
+  min-height: 0;
+  background: var(--brand-white);
+}
+
+.event-card .event-poster img {
+  position: static;
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
 .event-card-body,
 .event-detail-copy,
 .event-form,
@@ -2917,11 +2931,6 @@ button:disabled {
   .director-event-head,
   .kid-row {
     grid-template-columns: 1fr;
-  }
-
-  .event-card .event-poster {
-    min-height: 0;
-    aspect-ratio: 4 / 5;
   }
 
   .director-thumb {
