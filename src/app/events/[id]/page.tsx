@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EventPoster } from "@/components/EventPoster";
 import { EventRegisterForm } from "@/components/EventRegisterForm";
 import { EventsFrame } from "@/components/EventsFrame";
 import { pageShare, siteConfig } from "@/lib/config";
@@ -45,16 +45,7 @@ export default async function EventDetailPage({
         <Link href="/events">All events</Link>
       </p>
       <article className="event-detail">
-        <div className="event-poster event-poster-frame">
-          <Image
-            src={event.posterUrl}
-            alt={`${event.title} poster`}
-            fill
-            sizes="(max-width: 800px) 100vw, 380px"
-            priority
-            unoptimized
-          />
-        </div>
+        <EventPoster src={event.posterUrl} alt={`${event.title} poster`} />
         <div className="event-detail-copy">
           <div className="event-card-top">
             <p className="event-cost">{event.costLabel}</p>

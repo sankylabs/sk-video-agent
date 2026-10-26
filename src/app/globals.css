@@ -2569,11 +2569,89 @@ button:disabled {
 }
 
 .event-poster-frame {
-  overflow: hidden;
-  border-radius: 1.25rem;
-  box-shadow: var(--shadow);
-  aspect-ratio: 4 / 5;
+  width: 100%;
   min-height: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 1.25rem;
+  padding: 0;
+  background: var(--brand-white);
+  box-shadow: var(--shadow);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: zoom-in;
+}
+
+.event-poster.event-poster-frame img {
+  position: static;
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.event-poster-hint {
+  display: block;
+  padding: 0.55rem 0.8rem 0.65rem;
+  background: var(--brand-white);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.event-poster-frame:focus-visible {
+  outline: 3px solid var(--brand-yellow);
+  outline-offset: 3px;
+}
+
+.poster-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 4.25rem 1.25rem 1.5rem;
+  background: rgba(18, 16, 46, 0.88);
+}
+
+.poster-overlay-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.poster-overlay-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  background: var(--brand-white);
+  color: var(--brand-blue);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.poster-overlay-close:focus-visible {
+  outline: 3px solid var(--brand-yellow);
+  outline-offset: 3px;
+}
+
+.poster-overlay-image {
+  display: block;
+  width: auto;
+  max-width: min(960px, 100%);
+  height: auto;
+  max-height: calc(100vh - 6rem);
+  object-fit: contain;
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow);
 }
 
 .event-full {
@@ -2841,7 +2919,7 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .event-poster {
+  .event-card .event-poster {
     min-height: 0;
     aspect-ratio: 4 / 5;
   }
