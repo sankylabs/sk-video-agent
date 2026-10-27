@@ -545,6 +545,6 @@ export async function registerForEvent(
     };
     registrations.push(registration);
     await atomicWrite(registrationsFile, registrations);
-    return { registration };
+    return { registration, event };
   });
 }

@@ -2689,8 +2689,14 @@ button:disabled {
 
 .event-form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.75rem;
+  align-items: start;
+}
+
+.event-form-grid > *,
+.kid-row > * {
+  min-width: 0;
 }
 
 .event-form label,
@@ -2698,6 +2704,7 @@ button:disabled {
 .kid-row label {
   display: grid;
   gap: 0.35rem;
+  min-width: 0;
   font-weight: 800;
 }
 
@@ -2706,6 +2713,8 @@ button:disabled {
 .event-login input,
 .kid-row input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 0.8rem;
   padding: 0.7rem 0.8rem;
@@ -2732,6 +2741,11 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr) 6.5rem auto;
   gap: 0.6rem;
   align-items: end;
+}
+
+.kid-row .event-text-btn,
+.kid-row .event-secondary {
+  margin-top: 0;
 }
 
 .event-check {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { notifyEventRegistration } from "@/lib/event-registration-mail";
 import { EventInputError, registerForEvent } from "@/lib/events";
 
 const bodySchema = z.object({
@@ -34,6 +35,10 @@ export async function POST(
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
+    await notifyEventRegistration({
+      event: result.event,
+      registration: result.registration,
+    });
     return NextResponse.json({ ok: true, registrationId: result.registration.id });
   } catch (error) {
     if (error instanceof EventInputError) {
