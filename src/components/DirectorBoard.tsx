@@ -152,6 +152,9 @@ function DirectorEventCard({ event }: { event: DirectorEventView }) {
             <span>{event.timeLabel}</span>
           </p>
           <p className="event-spots">{spots}</p>
+          {event.ghlSync ? (
+            <p className="event-spots">Syncs to GHL · {event.ghlTag}</p>
+          ) : null}
           <p className="event-desc">{event.description}</p>
           <div className="director-actions">
             <Link className="event-secondary" href={`/events/manage/${event.id}`}>

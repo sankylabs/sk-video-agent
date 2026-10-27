@@ -15,6 +15,8 @@ type Draft = {
   endTime: string;
   endsNextDay: boolean;
   allowChildren: boolean;
+  ghlSync: boolean;
+  ghlTag: string;
 };
 
 function draftFrom(event: DirectorEventView | null): Draft {
@@ -29,6 +31,8 @@ function draftFrom(event: DirectorEventView | null): Draft {
       endTime: "",
       endsNextDay: false,
       allowChildren: true,
+      ghlSync: false,
+      ghlTag: "",
     };
   }
   return {
@@ -41,6 +45,8 @@ function draftFrom(event: DirectorEventView | null): Draft {
     endTime: event.endTime,
     endsNextDay: event.endsNextDay,
     allowChildren: event.allowChildren,
+    ghlSync: event.ghlSync,
+    ghlTag: event.ghlTag,
   };
 }
 
@@ -75,6 +81,10 @@ export function EventEditor({ event }: { event: DirectorEventView | null }) {
     const body = new FormData(submitEvent.currentTarget);
     if (draft.endsNextDay) body.set("endsNextDay", "yes");
     else body.delete("endsNextDay");
+    if (draft.ghlSync && !draft.ghlTag.trim()) {
+      setFormError("Enter a GHL tag name.");
+      return;
+    }
     if (limitLocked) body.set("capacity", event?.capacityInput || "");
     body.set("intent", intent);
     setPending(intent);
@@ -175,6 +185,35 @@ export function EventEditor({ event }: { event: DirectorEventView | null }) {
         {draft.allowChildren
           ? "Registration asks for each child. Turn this off for an event that does not need children."
           : "Registration will not ask for children."}
+      </p>
+      <label className="event-check">
+        <input
+          type="checkbox"
+          name="ghlSync"
+          value="yes"
+          checked={draft.ghlSync}
+          onChange={(input) => updateDraft({ ghlSync: input.target.checked })}
+        />
+        Sync to GHL
+      </label>
+      {draft.ghlSync ? (
+        <label>
+          GHL tag name
+          <input
+            name="ghlTag"
+            required
+            maxLength={60}
+            value={draft.ghlTag}
+            onChange={(input) => updateDraft({ ghlTag: input.target.value })}
+          />
+        </label>
+      ) : (
+        <input type="hidden" name="ghlTag" value={draft.ghlTag} />
+      )}
+      <p className="event-hint">
+        {draft.ghlSync
+          ? "Each registration is added in GoHighLevel as a contact and an Event Leads opportunity, with this tag."
+          : "Off by default. Turn this on to copy each registration into GoHighLevel."}
       </p>
       <p className="event-hint">
         {spotNote}{" "}

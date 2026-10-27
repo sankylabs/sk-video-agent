@@ -15,6 +15,10 @@ export type AcademyEvent = {
   capacity: number | null;
   /** When false, registration does not ask for children and each signup uses one spot. */
   allowChildren: boolean;
+  /** When true, each registration is copied into GoHighLevel. */
+  ghlSync: boolean;
+  /** Tag applied in GoHighLevel when sync is on. */
+  ghlTag: string;
   status: EventStatus;
   /** Basename inside .data/posters. */
   posterFile?: string;
@@ -81,8 +85,18 @@ export function residentLabel(value: boolean | null | undefined) {
   return "—";
 }
 
+export function parseGhlTag(raw: string): { tag: string } | { error: string } {
+  const tag = raw.trim();
+  if (!tag) return { error: "Enter a GHL tag name." };
+  if (tag.length > 60) return { error: "GHL tag name needs 60 characters or fewer." };
+  if (/[,\r\n]/.test(tag)) return { error: "GHL tag name cannot include a comma." };
+  return { tag };
+}
+
 export type DirectorEventView = PublicEvent & {
   status: EventStatus;
+  ghlSync: boolean;
+  ghlTag: string;
   costInput: string;
   capacityInput: string;
   date: string;
@@ -334,6 +348,8 @@ export function toDirectorEvent(
   return {
     ...toPublicEvent(event, taken, now),
     status: event.status === "draft" ? "draft" : "published",
+    ghlSync: event.ghlSync === true && Boolean(event.ghlTag?.trim()),
+    ghlTag: event.ghlTag?.trim() ?? "",
     costInput: centsToDollarInput(event.costCents),
     capacityInput: event.capacity == null ? "" : String(event.capacity),
     date: start.date,

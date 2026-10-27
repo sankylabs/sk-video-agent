@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { syncEventRegistrationToGhl } from "@/lib/event-ghl-sync";
 import { notifyEventRegistration } from "@/lib/event-registration-mail";
 import { EventInputError, registerForEvent } from "@/lib/events";
 
@@ -51,6 +52,10 @@ export async function POST(
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
     await notifyEventRegistration({
+      event: result.event,
+      registration: result.registration,
+    });
+    await syncEventRegistrationToGhl({
       event: result.event,
       registration: result.registration,
     });

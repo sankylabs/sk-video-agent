@@ -154,6 +154,8 @@ export async function fetchGhlFreeSlotIsos(
 
 export async function upsertGhlContact(input: {
   name?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   phone?: string;
   /** Booking must have email; lead-link creation may use phone only. */
@@ -175,7 +177,13 @@ export async function upsertGhlContact(input: {
   const body: Record<string, string> = {
     locationId: config.locationId,
   };
-  if (input.name?.trim()) body.name = input.name.trim();
+  const firstName = input.firstName?.trim();
+  const lastName = input.lastName?.trim();
+  if (firstName) body.firstName = firstName;
+  if (lastName) body.lastName = lastName;
+  const name =
+    input.name?.trim() || [firstName, lastName].filter(Boolean).join(" ");
+  if (name) body.name = name;
   if (email) body.email = email;
   if (phone) body.phone = phone;
 
@@ -728,6 +736,45 @@ export async function findNurturingStage(currentPipelineId?: string) {
     envPipe: process.env.GHL_NURTURING_PIPELINE_ID?.trim(),
     envStage: process.env.GHL_NURTURING_STAGE_ID?.trim(),
   });
+}
+
+export async function findEventLeadsStage() {
+  const envPipe = process.env.GHL_EVENT_LEADS_PIPELINE_ID?.trim();
+  const envStage = process.env.GHL_EVENT_LEADS_STAGE_ID?.trim();
+  if (envPipe && envStage) return { pipelineId: envPipe, stageId: envStage };
+  const pipes = await listGhlPipelines();
+  const named = pipes.find((pipe) => stageNameIs(pipe.name, "Event Leads"));
+  if (!named?.stages.length) return null;
+  const stage =
+    named.stages.find((item) => stageNameIs(item.name, "New")) ||
+    named.stages.find((item) => stageNameIs(item.name, "New Lead")) ||
+    named.stages[0];
+  return { pipelineId: named.id, stageId: stage.id };
+}
+
+export async function createGhlOpportunity(input: {
+  contactId: string;
+  name: string;
+  pipelineId: string;
+  stageId: string;
+}) {
+  const config = getGhlConfig();
+  if (!config) throw new Error("GHL is not configured");
+  const created = await ghlJson<{
+    opportunity?: { id?: string };
+    id?: string;
+  }>(config, "/opportunities/", {
+    method: "POST",
+    body: JSON.stringify({
+      locationId: config.locationId,
+      contactId: input.contactId,
+      name: input.name.trim() || "Event registration",
+      pipelineId: input.pipelineId,
+      pipelineStageId: input.stageId,
+      status: "open",
+    }),
+  });
+  return { opportunityId: created.opportunity?.id || created.id };
 }
 
 export async function findConversationStage(currentPipelineId?: string) {

@@ -7,6 +7,7 @@ import {
   isSoldOut,
   pacificRangeToIso,
   parseCapacity,
+  parseGhlTag,
   spotsTakenFor,
   toDirectorEvent,
   toPublicEvent,
@@ -111,6 +112,8 @@ const SEED_EVENTS: Array<Omit<AcademyEvent, "posterFile" | "createdAt" | "update
     costCents: 2500,
     capacity: null,
     allowChildren: true,
+    ghlSync: false,
+    ghlTag: "",
     status: "published",
     startsAt: "2026-11-07T18:00:00.000Z",
     endsAt: "2026-11-07T20:30:00.000Z",
@@ -129,6 +132,8 @@ const SEED_EVENTS: Array<Omit<AcademyEvent, "posterFile" | "createdAt" | "update
     costCents: 0,
     capacity: null,
     allowChildren: true,
+    ghlSync: false,
+    ghlTag: "",
     status: "published",
     startsAt: "2026-11-21T21:00:00.000Z",
     endsAt: "2026-11-22T00:00:00.000Z",
@@ -147,6 +152,8 @@ const SEED_EVENTS: Array<Omit<AcademyEvent, "posterFile" | "createdAt" | "update
     costCents: 0,
     capacity: null,
     allowChildren: true,
+    ghlSync: false,
+    ghlTag: "",
     status: "published",
     startsAt: "2026-09-12T17:00:00.000Z",
     endsAt: "2026-09-12T20:00:00.000Z",
@@ -189,6 +196,8 @@ function seedRecords(nowIso: string): AcademyEvent[] {
     posterFile: `${event.id}.svg`,
     capacity: null,
     allowChildren: true,
+    ghlSync: false,
+    ghlTag: "",
     status: "published",
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -210,6 +219,8 @@ function normalizeEvent(event: Partial<AcademyEvent>): AcademyEvent | null {
     endsAt: event.endsAt,
     capacity,
     allowChildren: event.allowChildren !== false,
+    ghlSync: event.ghlSync === true,
+    ghlTag: typeof event.ghlTag === "string" ? event.ghlTag.trim().slice(0, 60) : "",
     status: event.status === "draft" ? "draft" : "published",
     posterFile: event.posterFile,
     createdAt: event.createdAt || event.startsAt,
@@ -342,9 +353,19 @@ export function readEventForm(form: FormData) {
     capacity: parsedCapacity.capacity,
     capacityProvided,
     allowChildren: String(form.get("allowChildren") || "") === "yes",
+    ...readGhlSync(form),
     status,
     poster: readPosterUpload(form.get("poster")),
   };
+}
+
+function readGhlSync(form: FormData) {
+  const ghlSync = String(form.get("ghlSync") || "") === "yes";
+  const rawTag = String(form.get("ghlTag") || "");
+  if (!ghlSync) return { ghlSync: false, ghlTag: rawTag.trim().slice(0, 60) };
+  const parsed = parseGhlTag(rawTag);
+  if ("error" in parsed) throw new EventInputError(parsed.error);
+  return { ghlSync: true, ghlTag: parsed.tag };
 }
 
 function capacityForUpdate(
@@ -450,6 +471,8 @@ export async function createEvent(form: FormData) {
       costCents: input.costCents,
       capacity: input.capacity,
       allowChildren: input.allowChildren,
+      ghlSync: input.ghlSync,
+      ghlTag: input.ghlTag,
       status: input.status,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
@@ -483,6 +506,8 @@ export async function updateEvent(id: string, form: FormData) {
       costCents: input.costCents,
       capacity: capacityForUpdate(current, input),
       allowChildren: input.allowChildren,
+      ghlSync: input.ghlSync,
+      ghlTag: input.ghlTag,
       status: input.status,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
