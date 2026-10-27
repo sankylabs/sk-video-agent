@@ -253,7 +253,7 @@ async function readRegistrationsUnlocked(): Promise<EventRegistration[]> {
     if (kept.length !== parsed.length) {
       await atomicWrite(registrationsFile, kept);
       console.log(
-        `[events] removed ${parsed.length - kept.length} registration(s) for ${TEST_REGISTRATION_EVENT_ID}`,
+        `[events] removed ${parsed.length - kept.length} test registration(s) for ${TEST_REGISTRATION_EVENT_ID}`,
       );
     }
     return kept;
