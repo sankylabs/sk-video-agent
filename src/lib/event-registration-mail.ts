@@ -3,6 +3,7 @@ import {
   formatCost,
   formatEventSchedule,
   formatSubmitted,
+  residentLabel,
   type AcademyEvent,
   type EventRegistration,
 } from "./event-model";
@@ -28,6 +29,8 @@ export function buildEventRegistrationEmail(input: {
   const { event, registration } = input;
   const schedule = formatEventSchedule(event.startsAt, event.endsAt);
   const parent = `${registration.firstName} ${registration.lastName}`.trim();
+  const phone = registration.phone?.trim() || "—";
+  const resident = residentLabel(registration.kirklandResident);
   const children = registration.kids.map((kid) => `${kid.name}, age ${kid.age}`);
   const submitted = formatSubmitted(registration.createdAt);
   const eventUrl = `${appBaseUrl()}/events/${event.id}`;
@@ -42,6 +45,8 @@ export function buildEventRegistrationEmail(input: {
     "",
     `Parent: ${parent}`,
     `Email: ${registration.email}`,
+    `Phone: ${phone}`,
+    `Kirkland resident: ${resident}`,
     "",
     "Children:",
     ...children.map((child) => `- ${child}`),
@@ -62,6 +67,8 @@ export function buildEventRegistrationEmail(input: {
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Cost</th><td>${htmlEscape(formatCost(event.costCents))}</td></tr>
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Parent</th><td>${htmlEscape(parent)}</td></tr>
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Email</th><td>${htmlEscape(registration.email)}</td></tr>
+  <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Phone</th><td>${htmlEscape(phone)}</td></tr>
+  <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Kirkland resident</th><td>${htmlEscape(resident)}</td></tr>
   ${childRows}
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Submitted</th><td>${htmlEscape(submitted)}</td></tr>
 </table>

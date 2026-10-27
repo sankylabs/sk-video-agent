@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   DIRECTOR_PAGE_SIZE,
+  residentLabel,
   type DirectorEventView,
   type RegistrationView,
 } from "@/lib/event-model";
@@ -171,12 +172,22 @@ function csvCell(value: string) {
 }
 
 function registrationsCsv(registrations: RegistrationView[]) {
-  const header = ["First name", "Last name", "Email", "Children", "Submitted"];
+  const header = [
+    "First name",
+    "Last name",
+    "Email",
+    "Phone",
+    "Kirkland resident",
+    "Children",
+    "Submitted",
+  ];
   const lines = registrations.map((registration) =>
     [
       registration.firstName,
       registration.lastName,
       registration.email,
+      registration.phone || "—",
+      residentLabel(registration.kirklandResident),
       registration.kids.map((kid) => `${kid.name} (age ${kid.age})`).join("; "),
       registration.submittedLabel,
     ]
@@ -245,6 +256,8 @@ function RegistrationList({
                 <th scope="col">First name</th>
                 <th scope="col">Last name</th>
                 <th scope="col">Email</th>
+                <th scope="col">Phone</th>
+                <th scope="col">Kirkland resident</th>
                 <th scope="col">Children</th>
                 <th scope="col">Submitted</th>
               </tr>
@@ -255,6 +268,8 @@ function RegistrationList({
                   <td>{registration.firstName}</td>
                   <td>{registration.lastName}</td>
                   <td>{registration.email}</td>
+                  <td>{registration.phone || "—"}</td>
+                  <td>{residentLabel(registration.kirklandResident)}</td>
                   <td>
                     {registration.kids.map((kid) => `${kid.name}, age ${kid.age}`).join(" · ")}
                   </td>

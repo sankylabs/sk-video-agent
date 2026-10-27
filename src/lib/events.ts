@@ -507,6 +507,8 @@ export async function registerForEvent(
     firstName: string;
     lastName: string;
     email: string;
+    phone: string;
+    kirklandResident: boolean;
     kids: { name: string; age: number }[];
   },
 ) {
@@ -540,6 +542,8 @@ export async function registerForEvent(
       firstName: input.firstName,
       lastName: input.lastName,
       email: input.email,
+      phone: input.phone,
+      kirklandResident: input.kirklandResident,
       kids: input.kids,
       createdAt: new Date().toISOString(),
     };

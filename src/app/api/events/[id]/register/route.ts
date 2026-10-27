@@ -7,6 +7,16 @@ const bodySchema = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
   email: z.string().trim().email().max(160),
+  phone: z
+    .string()
+    .trim()
+    .min(1)
+    .max(40)
+    .refine((value) => {
+      const digits = value.replace(/\D/g, "").length;
+      return digits >= 10 && digits <= 15;
+    }),
+  kirklandResident: z.boolean(),
   kids: z
     .array(
       z.object({
@@ -26,7 +36,10 @@ export async function POST(
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Enter a first name, last name, email, and each child’s name and age (1–18)." },
+      {
+        error:
+          "Enter a first name, last name, email, phone number, whether you live in Kirkland, and each child’s name and age (1–18).",
+      },
       { status: 400 },
     );
   }

@@ -17,6 +17,8 @@ export function EventRegisterForm({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [kirklandResident, setKirklandResident] = useState("");
   const [kids, setKids] = useState<KidField[]>([emptyKid()]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -43,6 +45,15 @@ export function EventRegisterForm({
       setError("Add each child’s name and an age from 1 to 18.");
       return;
     }
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+      setError("Enter a phone number with at least 10 digits.");
+      return;
+    }
+    if (kirklandResident !== "yes" && kirklandResident !== "no") {
+      setError("Choose whether you are a Kirkland resident.");
+      return;
+    }
     setPending(true);
     const res = await fetch(`/api/events/${eventId}/register`, {
       method: "POST",
@@ -51,6 +62,8 @@ export function EventRegisterForm({
         firstName,
         lastName,
         email,
+        phone,
+        kirklandResident: kirklandResident === "yes",
         kids: payloadKids,
       }),
     });
@@ -78,7 +91,7 @@ export function EventRegisterForm({
         <h2>You’re registered</h2>
         <p>
           {done.parent}, we saved a spot for {done.children} at {title}. The academy
-          has your email at {email.trim()}.
+          has your email at {email.trim()} and your phone at {phone.trim()}.
         </p>
         <Link className="event-register" href="/events">
           Back to events
@@ -129,6 +142,34 @@ export function EventRegisterForm({
           onChange={(event) => setEmail(event.target.value)}
         />
       </label>
+      <div className="event-form-grid event-form-contact">
+        <label>
+          Are you a Kirkland resident?
+          <select
+            name="kirklandResident"
+            required
+            value={kirklandResident}
+            onChange={(event) => setKirklandResident(event.target.value)}
+          >
+            <option value="">Select</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+        <label>
+          Phone number
+          <input
+            name="phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            required
+            maxLength={40}
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+          />
+        </label>
+      </div>
       <fieldset className="event-kids">
         <legend>Children</legend>
         {kids.map((kid, index) => (

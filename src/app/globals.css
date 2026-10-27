@@ -2694,6 +2694,10 @@ button:disabled {
   align-items: start;
 }
 
+.event-form-contact {
+  align-items: end;
+}
+
 .event-form-grid > *,
 .kid-row > * {
   min-width: 0;
@@ -2710,6 +2714,7 @@ button:disabled {
 
 .event-form input,
 .event-form textarea,
+.event-form select,
 .event-login input,
 .kid-row input {
   width: 100%;
@@ -2721,6 +2726,15 @@ button:disabled {
   font: inherit;
   color: var(--brand-ink);
   background: var(--brand-white);
+}
+
+.event-form select {
+  appearance: none;
+  padding-right: 2.2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%231a1b3a' d='M1.4.6 6 5.2 10.6.6 12 2 6 8 0 2z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 0.7rem;
 }
 
 .event-kids {

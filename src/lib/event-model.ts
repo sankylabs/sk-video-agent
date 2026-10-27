@@ -31,6 +31,10 @@ export type EventRegistration = {
   firstName: string;
   lastName: string;
   email: string;
+  /** Missing on registrations saved before this field existed. */
+  phone?: string;
+  /** Missing on registrations saved before this field existed. */
+  kirklandResident?: boolean;
   kids: EventKid[];
   createdAt: string;
 };
@@ -57,10 +61,19 @@ export type RegistrationView = {
   firstName: string;
   lastName: string;
   email: string;
+  phone: string;
+  /** Null when an older registration was saved before this question existed. */
+  kirklandResident: boolean | null;
   kids: EventKid[];
   createdAt: string;
   submittedLabel: string;
 };
+
+export function residentLabel(value: boolean | null | undefined) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "—";
+}
 
 export type DirectorEventView = PublicEvent & {
   status: EventStatus;
@@ -328,6 +341,13 @@ export function toDirectorEvent(
         firstName: registration.firstName,
         lastName: registration.lastName,
         email: registration.email,
+        phone: registration.phone?.trim() ?? "",
+        kirklandResident:
+          registration.kirklandResident === true
+            ? true
+            : registration.kirklandResident === false
+              ? false
+              : null,
         kids: registration.kids,
         createdAt: registration.createdAt,
         submittedLabel: formatSubmitted(registration.createdAt),
