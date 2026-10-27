@@ -5,6 +5,9 @@ const noindexHeader = [
 ];
 
 const nextConfig: NextConfig = {
+  // Next.js 16 blocks dev assets unless the browser host matches the server.
+  // `next dev` listens on 0.0.0.0, and agents open the app at 127.0.0.1.
+  allowedDevOrigins: ["127.0.0.1"],
   async headers() {
     return [
       { source: "/maya", headers: noindexHeader },
