@@ -14,6 +14,7 @@ type Draft = {
   startTime: string;
   endTime: string;
   endsNextDay: boolean;
+  allowChildren: boolean;
 };
 
 function draftFrom(event: DirectorEventView | null): Draft {
@@ -27,6 +28,7 @@ function draftFrom(event: DirectorEventView | null): Draft {
       startTime: "",
       endTime: "",
       endsNextDay: false,
+      allowChildren: true,
     };
   }
   return {
@@ -38,6 +40,7 @@ function draftFrom(event: DirectorEventView | null): Draft {
     startTime: event.startTime,
     endTime: event.endTime,
     endsNextDay: event.endsNextDay,
+    allowChildren: event.allowChildren,
   };
 }
 
@@ -89,11 +92,19 @@ export function EventEditor({ event }: { event: DirectorEventView | null }) {
     router.refresh();
   }
 
+  const spotUnit = draft.allowChildren
+    ? "Each child takes one spot."
+    : "Each registration takes one spot.";
+  const registered = event
+    ? event.allowChildren
+      ? `${event.spotsTaken} ${event.spotsTaken === 1 ? "child" : "children"} registered.`
+      : `${event.spotsTaken} ${event.spotsTaken === 1 ? "registration" : "registrations"}.`
+    : "";
   const spotNote = event
     ? event.capacity == null
-      ? `${event.spotsTaken} ${event.spotsTaken === 1 ? "child" : "children"} registered. No spot limit yet.`
-      : `${event.spotsTaken} of ${event.capacity} spots filled.`
-    : "Each child takes one spot. Leave this blank for no limit.";
+      ? `${registered} No spot limit yet. ${spotUnit} Leave this blank for no limit.`
+      : `${event.spotsTaken} of ${event.capacity} spots filled. ${spotUnit}`
+    : `${spotUnit} Leave this blank for no limit.`;
 
   return (
     <form className="event-form director-form" onSubmit={onSubmit}>
@@ -150,6 +161,21 @@ export function EventEditor({ event }: { event: DirectorEventView | null }) {
         </label>
       </div>
       {limitLocked ? <input type="hidden" name="capacity" value={event?.capacityInput || ""} /> : null}
+      <label className="event-check">
+        <input
+          type="checkbox"
+          name="allowChildren"
+          value="yes"
+          checked={draft.allowChildren}
+          onChange={(input) => updateDraft({ allowChildren: input.target.checked })}
+        />
+        Allow children
+      </label>
+      <p className="event-hint">
+        {draft.allowChildren
+          ? "Registration asks for each child. Turn this off for an event that does not need children."
+          : "Registration will not ask for children."}
+      </p>
       <p className="event-hint">
         {spotNote}{" "}
         {limitLocked

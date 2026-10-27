@@ -31,6 +31,7 @@ export function buildEventRegistrationEmail(input: {
   const parent = `${registration.firstName} ${registration.lastName}`.trim();
   const phone = registration.phone?.trim() || "—";
   const resident = residentLabel(registration.kirklandResident);
+  const residence = registration.residence?.trim() || "";
   const children = registration.kids.map((kid) => `${kid.name}, age ${kid.age}`);
   const submitted = formatSubmitted(registration.createdAt);
   const eventUrl = `${appBaseUrl()}/events/${event.id}`;
@@ -47,9 +48,12 @@ export function buildEventRegistrationEmail(input: {
     `Email: ${registration.email}`,
     `Phone: ${phone}`,
     `Kirkland resident: ${resident}`,
-    "",
-    "Children:",
-    ...children.map((child) => `- ${child}`),
+    ...(registration.kirklandResident === false
+      ? [`Where they reside: ${residence || "—"}`]
+      : []),
+    ...(children.length
+      ? ["", "Children:", ...children.map((child) => `- ${child}`)]
+      : []),
     "",
     `Submitted: ${submitted}`,
   ];
@@ -69,6 +73,11 @@ export function buildEventRegistrationEmail(input: {
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Email</th><td>${htmlEscape(registration.email)}</td></tr>
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Phone</th><td>${htmlEscape(phone)}</td></tr>
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Kirkland resident</th><td>${htmlEscape(resident)}</td></tr>
+  ${
+    registration.kirklandResident === false
+      ? `<tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Where they reside</th><td>${htmlEscape(residence || "—")}</td></tr>`
+      : ""
+  }
   ${childRows}
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Submitted</th><td>${htmlEscape(submitted)}</td></tr>
 </table>

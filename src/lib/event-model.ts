@@ -11,8 +11,10 @@ export type AcademyEvent = {
   startsAt: string;
   /** ISO timestamp. */
   endsAt: string;
-  /** Child spots. Null means no limit. Each child uses one spot. */
+  /** Spots. Null means no limit. Each child uses one spot, or each registration does when children are off. */
   capacity: number | null;
+  /** When false, registration does not ask for children and each signup uses one spot. */
+  allowChildren: boolean;
   status: EventStatus;
   /** Basename inside .data/posters. */
   posterFile?: string;
@@ -35,6 +37,8 @@ export type EventRegistration = {
   phone?: string;
   /** Missing on registrations saved before this field existed. */
   kirklandResident?: boolean;
+  /** Set when the parent is not a Kirkland resident. */
+  residence?: string;
   kids: EventKid[];
   createdAt: string;
 };
@@ -54,6 +58,7 @@ export type PublicEvent = {
   spotsTaken: number;
   soldOut: boolean;
   posterUrl: string;
+  allowChildren: boolean;
 };
 
 export type RegistrationView = {
@@ -64,6 +69,7 @@ export type RegistrationView = {
   phone: string;
   /** Null when an older registration was saved before this question existed. */
   kirklandResident: boolean | null;
+  residence: string;
   kids: EventKid[];
   createdAt: string;
   submittedLabel: string;
@@ -252,12 +258,12 @@ export function isPastEvent(event: Pick<AcademyEvent, "endsAt">, now = new Date(
 export function spotsTakenFor(
   registrations: Pick<EventRegistration, "eventId" | "kids">[],
   eventId: string,
+  allowChildren = true,
 ) {
-  return registrations.reduce(
-    (sum, registration) =>
-      registration.eventId === eventId ? sum + registration.kids.length : sum,
-    0,
-  );
+  return registrations.reduce((sum, registration) => {
+    if (registration.eventId !== eventId) return sum;
+    return sum + (allowChildren ? registration.kids.length : 1);
+  }, 0);
 }
 
 export function isSoldOut(capacity: number | null, taken: number) {
@@ -313,6 +319,7 @@ export function toPublicEvent(
     spotsTaken,
     soldOut: isSoldOut(capacity, spotsTaken),
     posterUrl: `/api/events/poster/${event.id}`,
+    allowChildren: event.allowChildren !== false,
   };
 }
 
@@ -323,7 +330,7 @@ export function toDirectorEvent(
 ): DirectorEventView {
   const start = pacificParts(event.startsAt);
   const end = pacificParts(event.endsAt);
-  const taken = spotsTakenFor(registrations, event.id);
+  const taken = spotsTakenFor(registrations, event.id, event.allowChildren !== false);
   return {
     ...toPublicEvent(event, taken, now),
     status: event.status === "draft" ? "draft" : "published",
@@ -348,6 +355,7 @@ export function toDirectorEvent(
             : registration.kirklandResident === false
               ? false
               : null,
+        residence: registration.residence?.trim() ?? "",
         kids: registration.kids,
         createdAt: registration.createdAt,
         submittedLabel: formatSubmitted(registration.createdAt),

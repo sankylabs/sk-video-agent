@@ -17,6 +17,7 @@ const bodySchema = z.object({
       return digits >= 10 && digits <= 15;
     }),
   kirklandResident: z.boolean(),
+  residence: z.string().trim().max(120).optional(),
   kids: z
     .array(
       z.object({
@@ -24,8 +25,9 @@ const bodySchema = z.object({
         age: z.number().int().min(1).max(18),
       }),
     )
-    .min(1)
-    .max(8),
+    .max(8)
+    .optional()
+    .default([]),
 });
 
 export async function POST(
@@ -38,7 +40,7 @@ export async function POST(
     return NextResponse.json(
       {
         error:
-          "Enter a first name, last name, email, phone number, whether you live in Kirkland, and each child’s name and age (1–18).",
+          "Enter a first name, last name, email, phone number, and whether you are a Kirkland resident.",
       },
       { status: 400 },
     );

@@ -10,15 +10,18 @@ const emptyKid = (): KidField => ({ name: "", age: "" });
 export function EventRegisterForm({
   eventId,
   title,
+  allowChildren,
 }: {
   eventId: string;
   title: string;
+  allowChildren: boolean;
 }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [kirklandResident, setKirklandResident] = useState("");
+  const [residence, setResidence] = useState("");
   const [kids, setKids] = useState<KidField[]>([emptyKid()]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -33,18 +36,6 @@ export function EventRegisterForm({
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
-    const payloadKids = kids.map((kid) => ({
-      name: kid.name.trim(),
-      age: Number(kid.age),
-    }));
-    if (
-      payloadKids.some(
-        (kid) => !kid.name || !Number.isInteger(kid.age) || kid.age < 1 || kid.age > 18,
-      )
-    ) {
-      setError("Add each child’s name and an age from 1 to 18.");
-      return;
-    }
     const phoneDigits = phone.replace(/\D/g, "");
     if (phoneDigits.length < 10 || phoneDigits.length > 15) {
       setError("Enter a phone number with at least 10 digits.");
@@ -52,6 +43,25 @@ export function EventRegisterForm({
     }
     if (kirklandResident !== "yes" && kirklandResident !== "no") {
       setError("Choose whether you are a Kirkland resident.");
+      return;
+    }
+    if (kirklandResident === "no" && !residence.trim()) {
+      setError("Tell us where you reside.");
+      return;
+    }
+    const payloadKids = allowChildren
+      ? kids.map((kid) => ({
+          name: kid.name.trim(),
+          age: Number(kid.age),
+        }))
+      : [];
+    if (
+      allowChildren &&
+      payloadKids.some(
+        (kid) => !kid.name || !Number.isInteger(kid.age) || kid.age < 1 || kid.age > 18,
+      )
+    ) {
+      setError("Add each child’s name and an age from 1 to 18.");
       return;
     }
     setPending(true);
@@ -64,6 +74,7 @@ export function EventRegisterForm({
         email,
         phone,
         kirklandResident: kirklandResident === "yes",
+        residence: kirklandResident === "no" ? residence.trim() : "",
         kids: payloadKids,
       }),
     });
@@ -90,8 +101,8 @@ export function EventRegisterForm({
         <p className="home-kicker home-kicker-dark">Registration saved</p>
         <h2>You’re registered</h2>
         <p>
-          {done.parent}, we saved a spot for {done.children} at {title}. The academy
-          has your email at {email.trim()} and your phone at {phone.trim()}.
+          {done.parent}, we saved {allowChildren ? `a spot for ${done.children}` : "your spot"} at{" "}
+          {title}. The academy has your email at {email.trim()} and your phone at {phone.trim()}.
         </p>
         <Link className="event-register" href="/events">
           Back to events
@@ -170,6 +181,19 @@ export function EventRegisterForm({
           />
         </label>
       </div>
+      {kirklandResident === "no" ? (
+        <label>
+          Where do you reside?
+          <input
+            name="residence"
+            required
+            maxLength={120}
+            value={residence}
+            onChange={(event) => setResidence(event.target.value)}
+          />
+        </label>
+      ) : null}
+      {allowChildren ? (
       <fieldset className="event-kids">
         <legend>Children</legend>
         {kids.map((kid, index) => (
@@ -218,6 +242,7 @@ export function EventRegisterForm({
           </button>
         ) : null}
       </fieldset>
+      ) : null}
       {error ? <p className="maya-error">{error}</p> : null}
       <button className="event-register" type="submit" disabled={pending}>
         {pending ? "Saving…" : "Register"}

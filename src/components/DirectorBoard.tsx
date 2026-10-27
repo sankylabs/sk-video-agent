@@ -178,6 +178,7 @@ function registrationsCsv(registrations: RegistrationView[]) {
     "Email",
     "Phone",
     "Kirkland resident",
+    "Where they reside",
     "Children",
     "Submitted",
   ];
@@ -188,7 +189,10 @@ function registrationsCsv(registrations: RegistrationView[]) {
       registration.email,
       registration.phone || "—",
       residentLabel(registration.kirklandResident),
-      registration.kids.map((kid) => `${kid.name} (age ${kid.age})`).join("; "),
+      registration.residence || "—",
+      registration.kids.length
+        ? registration.kids.map((kid) => `${kid.name} (age ${kid.age})`).join("; ")
+        : "—",
       registration.submittedLabel,
     ]
       .map(csvCell)
@@ -258,6 +262,7 @@ function RegistrationList({
                 <th scope="col">Email</th>
                 <th scope="col">Phone</th>
                 <th scope="col">Kirkland resident</th>
+                <th scope="col">Where they reside</th>
                 <th scope="col">Children</th>
                 <th scope="col">Submitted</th>
               </tr>
@@ -270,8 +275,11 @@ function RegistrationList({
                   <td>{registration.email}</td>
                   <td>{registration.phone || "—"}</td>
                   <td>{residentLabel(registration.kirklandResident)}</td>
+                  <td>{registration.residence || "—"}</td>
                   <td>
-                    {registration.kids.map((kid) => `${kid.name}, age ${kid.age}`).join(" · ")}
+                    {registration.kids.length
+                      ? registration.kids.map((kid) => `${kid.name}, age ${kid.age}`).join(" · ")
+                      : "—"}
                   </td>
                   <td>{registration.submittedLabel}</td>
                 </tr>

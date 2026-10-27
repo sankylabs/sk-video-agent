@@ -110,6 +110,7 @@ const SEED_EVENTS: Array<Omit<AcademyEvent, "posterFile" | "createdAt" | "update
       "Spend a Saturday morning in the makerspace with your child. Families build a small kinetic sculpture together, then take it home. Best for ages 5–12. Snacks included.",
     costCents: 2500,
     capacity: null,
+    allowChildren: true,
     status: "published",
     startsAt: "2026-11-07T18:00:00.000Z",
     endsAt: "2026-11-07T20:30:00.000Z",
@@ -127,6 +128,7 @@ const SEED_EVENTS: Array<Omit<AcademyEvent, "posterFile" | "createdAt" | "update
       "Students demo the robots they have been building, then visitors try a short drive-and-code challenge. Come watch, cheer, and see what a session at Steamoji feels like. Ages 6–14.",
     costCents: 0,
     capacity: null,
+    allowChildren: true,
     status: "published",
     startsAt: "2026-11-21T21:00:00.000Z",
     endsAt: "2026-11-22T00:00:00.000Z",
@@ -144,6 +146,7 @@ const SEED_EVENTS: Array<Omit<AcademyEvent, "posterFile" | "createdAt" | "update
       "Neighbors toured the Kirkland academy, met mentors, and tried a mini build station. A look at how families get started with a free session.",
     costCents: 0,
     capacity: null,
+    allowChildren: true,
     status: "published",
     startsAt: "2026-09-12T17:00:00.000Z",
     endsAt: "2026-09-12T20:00:00.000Z",
@@ -185,6 +188,7 @@ function seedRecords(nowIso: string): AcademyEvent[] {
     endsAt: event.endsAt,
     posterFile: `${event.id}.svg`,
     capacity: null,
+    allowChildren: true,
     status: "published",
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -205,6 +209,7 @@ function normalizeEvent(event: Partial<AcademyEvent>): AcademyEvent | null {
     startsAt: event.startsAt,
     endsAt: event.endsAt,
     capacity,
+    allowChildren: event.allowChildren !== false,
     status: event.status === "draft" ? "draft" : "published",
     posterFile: event.posterFile,
     createdAt: event.createdAt || event.startsAt,
@@ -336,6 +341,7 @@ export function readEventForm(form: FormData) {
     endsAt: range.endsAt,
     capacity: parsedCapacity.capacity,
     capacityProvided,
+    allowChildren: String(form.get("allowChildren") || "") === "yes",
     status,
     poster: readPosterUpload(form.get("poster")),
   };
@@ -362,7 +368,9 @@ export async function listPublicEvents(now = new Date()): Promise<PublicEvent[]>
     ]);
     return events
       .filter((event) => event.status === "published")
-      .map((event) => toPublicEvent(event, spotsTakenFor(registrations, event.id), now));
+      .map((event) =>
+        toPublicEvent(event, spotsTakenFor(registrations, event.id, event.allowChildren), now),
+      );
   });
 }
 
@@ -374,7 +382,11 @@ export async function getPublicEvent(id: string, now = new Date()) {
     ]);
     const event = events.find((item) => item.id === id);
     if (!event || event.status !== "published") return null;
-    return toPublicEvent(event, spotsTakenFor(registrations, event.id), now);
+    return toPublicEvent(
+      event,
+      spotsTakenFor(registrations, event.id, event.allowChildren),
+      now,
+    );
   });
 }
 
@@ -437,6 +449,7 @@ export async function createEvent(form: FormData) {
       description: input.description,
       costCents: input.costCents,
       capacity: input.capacity,
+      allowChildren: input.allowChildren,
       status: input.status,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
@@ -469,6 +482,7 @@ export async function updateEvent(id: string, form: FormData) {
       description: input.description,
       costCents: input.costCents,
       capacity: capacityForUpdate(current, input),
+      allowChildren: input.allowChildren,
       status: input.status,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
@@ -509,6 +523,7 @@ export async function registerForEvent(
     email: string;
     phone: string;
     kirklandResident: boolean;
+    residence?: string;
     kids: { name: string; age: number }[];
   },
 ) {
@@ -521,10 +536,27 @@ export async function registerForEvent(
     if (isPastEvent(event)) {
       return { error: "Registration is closed for this event.", status: 409 as const };
     }
+    const residence = input.kirklandResident ? "" : (input.residence || "").trim();
+    if (!input.kirklandResident && !residence) {
+      return { error: "Tell us where you reside.", status: 400 as const };
+    }
+    if (residence.length > 120) {
+      return { error: "Where you reside needs 120 characters or fewer.", status: 400 as const };
+    }
+    if (event.allowChildren && input.kids.length < 1) {
+      return {
+        error: "Add each child’s name and an age from 1 to 18.",
+        status: 400 as const,
+      };
+    }
+    if (!event.allowChildren && input.kids.length > 0) {
+      return { error: "This event does not register children.", status: 400 as const };
+    }
+    const kids = event.allowChildren ? input.kids : [];
     const registrations = await readRegistrationsUnlocked();
     if (event.capacity != null) {
-      const taken = spotsTakenFor(registrations, event.id);
-      const incoming = input.kids.length;
+      const taken = spotsTakenFor(registrations, event.id, event.allowChildren);
+      const incoming = event.allowChildren ? kids.length : 1;
       if (isSoldOut(event.capacity, taken)) {
         return { error: "This event is sold out.", status: 409 as const };
       }
@@ -544,7 +576,8 @@ export async function registerForEvent(
       email: input.email,
       phone: input.phone,
       kirklandResident: input.kirklandResident,
-      kids: input.kids,
+      ...(residence ? { residence } : {}),
+      kids,
       createdAt: new Date().toISOString(),
     };
     registrations.push(registration);

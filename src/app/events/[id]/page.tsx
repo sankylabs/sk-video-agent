@@ -70,7 +70,11 @@ export default async function EventDetailPage({
           ) : event.soldOut ? (
             <p className="event-closed-note">This event is sold out.</p>
           ) : (
-            <EventRegisterForm eventId={event.id} title={event.title} />
+            <EventRegisterForm
+              eventId={event.id}
+              title={event.title}
+              allowChildren={event.allowChildren}
+            />
           )}
         </div>
       </article>
