@@ -238,12 +238,25 @@ async function readEventsUnlocked(): Promise<AcademyEvent[]> {
   }
 }
 
+/** One-time production clear of test signups for Just for Moms. Remove after it has run. */
+const TEST_REGISTRATION_EVENT_ID = "w-cj4EJWk7";
+
 async function readRegistrationsUnlocked(): Promise<EventRegistration[]> {
   await fs.mkdir(dataDir, { recursive: true });
   try {
     const raw = await fs.readFile(registrationsFile, "utf8");
     const parsed = JSON.parse(raw) as EventRegistration[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const kept = parsed.filter(
+      (registration) => registration?.eventId !== TEST_REGISTRATION_EVENT_ID,
+    );
+    if (kept.length !== parsed.length) {
+      await atomicWrite(registrationsFile, kept);
+      console.log(
+        `[events] removed ${parsed.length - kept.length} registration(s) for ${TEST_REGISTRATION_EVENT_ID}`,
+      );
+    }
+    return kept;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") return [];
