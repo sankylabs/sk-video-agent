@@ -67,7 +67,7 @@ export async function syncEventRegistrationToGhl(input: {
     });
     await addGhlContactTags(contactId, [tag]);
     const stage = await findEventLeadsStage();
-    if (!stage) throw new Error("No Event Leads pipeline found in GHL");
+    if (!stage) throw new Error("No Event Leads stage found in GHL");
     await createGhlOpportunity({
       contactId,
       name: `${parent} — ${event.title}`.slice(0, 120),

@@ -212,7 +212,7 @@ export function EventEditor({ event }: { event: DirectorEventView | null }) {
       )}
       <p className="event-hint">
         {draft.ghlSync
-          ? "Each registration is added in GoHighLevel as a contact and an Event Leads opportunity, with this tag."
+          ? "Each registration is added in GoHighLevel as a contact and an opportunity in the Event Leads stage, with this tag."
           : "Off by default. Turn this on to copy each registration into GoHighLevel."}
       </p>
       <p className="event-hint">

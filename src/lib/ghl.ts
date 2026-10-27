@@ -738,18 +738,28 @@ export async function findNurturingStage(currentPipelineId?: string) {
   });
 }
 
+/** Kirkland opportunities board. Event Leads is a stage on this pipeline. */
+const DEFAULT_EVENT_PIPELINE_ID = "yxJYqzGLjOFZyWl4icMo";
+
 export async function findEventLeadsStage() {
   const envPipe = process.env.GHL_EVENT_LEADS_PIPELINE_ID?.trim();
   const envStage = process.env.GHL_EVENT_LEADS_STAGE_ID?.trim();
   if (envPipe && envStage) return { pipelineId: envPipe, stageId: envStage };
   const pipes = await listGhlPipelines();
-  const named = pipes.find((pipe) => stageNameIs(pipe.name, "Event Leads"));
-  if (!named?.stages.length) return null;
-  const stage =
-    named.stages.find((item) => stageNameIs(item.name, "New")) ||
-    named.stages.find((item) => stageNameIs(item.name, "New Lead")) ||
-    named.stages[0];
-  return { pipelineId: named.id, stageId: stage.id };
+  const preferredId =
+    envPipe || process.env.GHL_PIPELINE_ID?.trim() || DEFAULT_EVENT_PIPELINE_ID;
+  const preferred = pipes.find((pipe) => pipe.id === preferredId);
+  const onPreferred = preferred?.stages.find((item) =>
+    stageNameIs(item.name, "Event Leads"),
+  );
+  if (preferred && onPreferred) {
+    return { pipelineId: preferred.id, stageId: onPreferred.id };
+  }
+  for (const pipe of pipes) {
+    const stage = pipe.stages.find((item) => stageNameIs(item.name, "Event Leads"));
+    if (stage) return { pipelineId: pipe.id, stageId: stage.id };
+  }
+  return null;
 }
 
 export async function createGhlOpportunity(input: {
