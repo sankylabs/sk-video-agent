@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { syncEventRegistrationToGhl } from "@/lib/event-ghl-sync";
 import { notifyEventRegistration } from "@/lib/event-registration-mail";
-import { EventInputError, registerForEvent } from "@/lib/events";
+import { EventInputError, registerForEvent, syncPendingEventRegistrations } from "@/lib/events";
 
 const bodySchema = z.object({
   firstName: z.string().trim().min(1).max(80),
@@ -55,10 +54,7 @@ export async function POST(
       event: result.event,
       registration: result.registration,
     });
-    await syncEventRegistrationToGhl({
-      event: result.event,
-      registration: result.registration,
-    });
+    await syncPendingEventRegistrations();
     return NextResponse.json({ ok: true, registrationId: result.registration.id });
   } catch (error) {
     if (error instanceof EventInputError) {

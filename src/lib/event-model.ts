@@ -45,6 +45,12 @@ export type EventRegistration = {
   residence?: string;
   kids: EventKid[];
   createdAt: string;
+  /** Set after the registration is copied into GoHighLevel. */
+  ghlSyncedAt?: string;
+  /** Last failed copy into GoHighLevel. */
+  ghlSyncError?: string;
+  /** Claim time so two requests do not create the same opportunity. */
+  ghlSyncAttemptAt?: string;
 };
 
 export type PublicEvent = {
@@ -77,12 +83,24 @@ export type RegistrationView = {
   kids: EventKid[];
   createdAt: string;
   submittedLabel: string;
+  /** Empty when this event does not sync to GoHighLevel. */
+  ghlStatus: string;
 };
 
 export function residentLabel(value: boolean | null | undefined) {
   if (value === true) return "Yes";
   if (value === false) return "No";
   return "—";
+}
+
+export function ghlStatusLabel(registration: {
+  ghlSyncedAt?: string;
+  ghlSyncError?: string;
+}) {
+  if (registration.ghlSyncedAt) return "In GHL";
+  const error = registration.ghlSyncError?.trim();
+  if (!error) return "Pending";
+  return error.length > 160 ? `${error.slice(0, 157)}...` : error;
 }
 
 export function parseGhlTag(raw: string): { tag: string } | { error: string } {
@@ -375,6 +393,10 @@ export function toDirectorEvent(
         kids: registration.kids,
         createdAt: registration.createdAt,
         submittedLabel: formatSubmitted(registration.createdAt),
+        ghlStatus:
+          event.ghlSync === true && event.ghlTag?.trim()
+            ? ghlStatusLabel(registration)
+            : "",
       })),
   };
 }

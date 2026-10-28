@@ -164,7 +164,11 @@ function DirectorEventCard({ event }: { event: DirectorEventView }) {
           </div>
         </div>
       </div>
-      <RegistrationList title={event.title} registrations={event.registrations} />
+      <RegistrationList
+        title={event.title}
+        registrations={event.registrations}
+        showGhl={event.ghlSync}
+      />
     </article>
   );
 }
@@ -174,7 +178,7 @@ function csvCell(value: string) {
   return value;
 }
 
-function registrationsCsv(registrations: RegistrationView[]) {
+function registrationsCsv(registrations: RegistrationView[], showGhl: boolean) {
   const header = [
     "First name",
     "Last name",
@@ -184,6 +188,7 @@ function registrationsCsv(registrations: RegistrationView[]) {
     "Where they reside",
     "Children",
     "Submitted",
+    ...(showGhl ? ["GHL"] : []),
   ];
   const lines = registrations.map((registration) =>
     [
@@ -197,6 +202,7 @@ function registrationsCsv(registrations: RegistrationView[]) {
         ? registration.kids.map((kid) => `${kid.name} (age ${kid.age})`).join("; ")
         : "—",
       registration.submittedLabel,
+      ...(showGhl ? [registration.ghlStatus || "—"] : []),
     ]
       .map(csvCell)
       .join(","),
@@ -215,9 +221,11 @@ function csvFilename(title: string) {
 function RegistrationList({
   title,
   registrations,
+  showGhl,
 }: {
   title: string;
   registrations: RegistrationView[];
+  showGhl: boolean;
 }) {
   const [page, setPage] = useState(1);
   const pages = Math.max(1, Math.ceil(registrations.length / DIRECTOR_PAGE_SIZE));
@@ -228,7 +236,7 @@ function RegistrationList({
   );
 
   function exportCsv() {
-    const blob = new Blob([registrationsCsv(registrations)], {
+    const blob = new Blob([registrationsCsv(registrations, showGhl)], {
       type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
@@ -268,6 +276,7 @@ function RegistrationList({
                 <th scope="col">Where they reside</th>
                 <th scope="col">Children</th>
                 <th scope="col">Submitted</th>
+                {showGhl ? <th scope="col">GHL</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -285,6 +294,7 @@ function RegistrationList({
                       : "—"}
                   </td>
                   <td>{registration.submittedLabel}</td>
+                  {showGhl ? <td>{registration.ghlStatus || "Pending"}</td> : null}
                 </tr>
               ))}
             </tbody>

@@ -50,8 +50,7 @@ export async function syncEventRegistrationToGhl(input: {
   const tag = input.event.ghlTag?.trim() || "";
   if (!input.event.ghlSync || !tag) return { synced: false as const, skipped: true as const };
   if (!getGhlConfig()) {
-    console.error("[events] GHL sync skipped, GHL is not configured");
-    return { synced: false as const, skipped: true as const };
+    return { synced: false as const, error: "GoHighLevel is not configured" };
   }
 
   const { registration, event } = input;
@@ -80,10 +79,8 @@ export async function syncEventRegistrationToGhl(input: {
     );
     return { synced: true as const };
   } catch (err) {
-    console.error(
-      "[events] GHL sync failed",
-      err instanceof Error ? err.message : err,
-    );
-    return { synced: false as const };
+    const message = err instanceof Error ? err.message : "GoHighLevel did not accept this registration.";
+    console.error("[events] GHL sync failed", message);
+    return { synced: false as const, error: message.slice(0, 300) };
   }
 }

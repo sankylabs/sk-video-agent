@@ -7,7 +7,7 @@ import {
   isEventsDirectorAuthed,
 } from "@/lib/event-auth";
 import { groupDirectorEvents, paginate } from "@/lib/event-model";
-import { listDirectorEvents } from "@/lib/events";
+import { listDirectorEvents, syncPendingEventRegistrations } from "@/lib/events";
 import { noindexMetadata } from "@/lib/noindex";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,7 @@ export default async function EventsManagePage({
 }) {
   const authed = await isEventsDirectorAuthed();
   const params = await searchParams;
+  if (authed) await syncPendingEventRegistrations();
   const grouped = groupDirectorEvents(authed ? await listDirectorEvents() : []);
   const published = paginate(grouped.publishedCurrent, params.page);
   const drafts = paginate(grouped.drafts, params.drafts);

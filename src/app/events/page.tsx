@@ -2,7 +2,7 @@ import { EventsBrowser } from "@/components/EventsBrowser";
 import { EventsFrame } from "@/components/EventsFrame";
 import { pageShare } from "@/lib/config";
 import { splitEvents } from "@/lib/event-model";
-import { listPublicEvents } from "@/lib/events";
+import { listPublicEvents, syncPendingEventRegistrations } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,7 @@ export const metadata = pageShare({
 });
 
 export default async function EventsPage() {
+  await syncPendingEventRegistrations();
   const { upcoming, past } = splitEvents(await listPublicEvents());
 
   return (

@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { promises as fs } from "fs";
 import path from "path";
+import { syncEventRegistrationToGhl } from "./event-ghl-sync";
 import {
   dollarsToCents,
   isPastEvent,
@@ -609,4 +610,59 @@ export async function registerForEvent(
     await atomicWrite(registrationsFile, registrations);
     return { registration, event };
   });
+}
+
+const GHL_RETRY_MS = 60_000;
+
+/** Copy registrations that were saved before sync was turned on, or whose last copy failed. */
+export async function syncPendingEventRegistrations() {
+  const claimed = await withLock(async () => {
+    const [events, registrations] = await Promise.all([
+      readEventsUnlocked(),
+      readRegistrationsUnlocked(),
+    ]);
+    const now = Date.now();
+    const pending: { event: AcademyEvent; registration: EventRegistration }[] = [];
+    let changed = false;
+    for (const registration of registrations) {
+      if (registration.ghlSyncedAt) continue;
+      const event = events.find((item) => item.id === registration.eventId);
+      if (!event?.ghlSync || !event.ghlTag?.trim()) continue;
+      const attempt = Date.parse(registration.ghlSyncAttemptAt || "");
+      if (Number.isFinite(attempt) && now - attempt < GHL_RETRY_MS) continue;
+      registration.ghlSyncAttemptAt = new Date().toISOString();
+      changed = true;
+      pending.push({
+        event,
+        registration: {
+          ...registration,
+          kids: registration.kids.map((kid) => ({ ...kid })),
+        },
+      });
+    }
+    if (changed) await atomicWrite(registrationsFile, registrations);
+    return pending;
+  });
+
+  for (const item of claimed) {
+    const result = await syncEventRegistrationToGhl({
+      event: item.event,
+      registration: item.registration,
+    });
+    await withLock(async () => {
+      const registrations = await readRegistrationsUnlocked();
+      const registration = registrations.find((entry) => entry.id === item.registration.id);
+      if (!registration || registration.ghlSyncedAt) return;
+      if (result.synced) {
+        registration.ghlSyncedAt = new Date().toISOString();
+        delete registration.ghlSyncError;
+      } else if ("skipped" in result && result.skipped) {
+        delete registration.ghlSyncAttemptAt;
+      } else {
+        registration.ghlSyncError =
+          "error" in result ? result.error : "GoHighLevel did not accept this registration.";
+      }
+      await atomicWrite(registrationsFile, registrations);
+    });
+  }
 }
