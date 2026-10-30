@@ -1,6 +1,10 @@
 import { nanoid } from "nanoid";
 import { promises as fs } from "fs";
 import path from "path";
+import {
+  deliverRegistrationConfirmation,
+  REGISTRATION_CONFIRMATION_EVENT_ID,
+} from "./event-confirmation-mail";
 import { syncEventRegistrationToGhl } from "./event-ghl-sync";
 import {
   dollarsToCents,
@@ -665,4 +669,54 @@ export async function syncPendingEventRegistrations() {
       await atomicWrite(registrationsFile, registrations);
     });
   }
+}
+
+/** Confirmation emails for the Just for Moms workshop, including signups already saved. */
+export async function sendPendingEventConfirmations() {
+  const claimed = await withLock(async () => {
+    const [events, registrations] = await Promise.all([
+      readEventsUnlocked(),
+      readRegistrationsUnlocked(),
+    ]);
+    const event = events.find((item) => item.id === REGISTRATION_CONFIRMATION_EVENT_ID);
+    if (!event) return [];
+    const now = Date.now();
+    const pending: { event: AcademyEvent; registration: EventRegistration }[] = [];
+    let changed = false;
+    for (const registration of registrations) {
+      if (registration.eventId !== event.id || registration.confirmationSentAt) continue;
+      const attempt = Date.parse(registration.confirmationAttemptAt || "");
+      if (Number.isFinite(attempt) && now - attempt < GHL_RETRY_MS) continue;
+      registration.confirmationAttemptAt = new Date().toISOString();
+      changed = true;
+      pending.push({
+        event,
+        registration: {
+          ...registration,
+          kids: registration.kids.map((kid) => ({ ...kid })),
+        },
+      });
+    }
+    if (changed) await atomicWrite(registrationsFile, registrations);
+    return pending;
+  });
+
+  let sent = 0;
+  const errors: string[] = [];
+  for (const item of claimed) {
+    const result = await deliverRegistrationConfirmation(item);
+    await withLock(async () => {
+      const registrations = await readRegistrationsUnlocked();
+      const registration = registrations.find((entry) => entry.id === item.registration.id);
+      if (!registration || registration.confirmationSentAt) return;
+      if (result.sent) {
+        registration.confirmationSentAt = new Date().toISOString();
+      }
+      await atomicWrite(registrationsFile, registrations);
+    });
+    if (result.sent) sent += 1;
+    else errors.push(result.error.replaceAll(item.registration.email, "recipient"));
+  }
+  if (errors.length) console.error("[events] confirmation email failed", errors.join(" | "));
+  return { sent, failed: errors.length, errors };
 }

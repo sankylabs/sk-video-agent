@@ -51,6 +51,10 @@ export type EventRegistration = {
   ghlSyncError?: string;
   /** Claim time so two requests do not create the same opportunity. */
   ghlSyncAttemptAt?: string;
+  /** Set after the parent confirmation email is sent. */
+  confirmationSentAt?: string;
+  /** Claim time so two requests do not send the same confirmation. */
+  confirmationAttemptAt?: string;
 };
 
 export type PublicEvent = {

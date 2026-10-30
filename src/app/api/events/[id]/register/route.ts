@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { notifyEventRegistration } from "@/lib/event-registration-mail";
-import { EventInputError, registerForEvent, syncPendingEventRegistrations } from "@/lib/events";
+import { REGISTRATION_CONFIRMATION_EVENT_ID } from "@/lib/event-confirmation-mail";
+import {
+  EventInputError,
+  registerForEvent,
+  sendPendingEventConfirmations,
+  syncPendingEventRegistrations,
+} from "@/lib/events";
 
 const bodySchema = z.object({
   firstName: z.string().trim().min(1).max(80),
@@ -55,6 +61,14 @@ export async function POST(
       registration: result.registration,
     });
     await syncPendingEventRegistrations();
+    if (result.event.id === REGISTRATION_CONFIRMATION_EVENT_ID) {
+      await sendPendingEventConfirmations().catch((err: unknown) => {
+        console.error(
+          "[events] confirmation email failed",
+          err instanceof Error ? err.message : err,
+        );
+      });
+    }
     return NextResponse.json({ ok: true, registrationId: result.registration.id });
   } catch (error) {
     if (error instanceof EventInputError) {
