@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { calendarInviteTestFile, sendCalendarInviteTest } from "@/lib/event-calendar-test";
+import { calendarInviteTestFile } from "@/lib/event-calendar-test";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +15,4 @@ export async function GET() {
       "Cache-Control": "no-store",
     },
   });
-}
-
-export async function POST() {
-  try {
-    const result = await sendCalendarInviteTest();
-    return NextResponse.json(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "send failed";
-    return NextResponse.json({ ok: false, error: message }, { status: 502 });
-  }
 }
