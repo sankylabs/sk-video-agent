@@ -215,9 +215,12 @@ export async function sendGhlEmail(input: {
   subject: string;
   html: string;
   text: string;
+  /** Public file URLs. GoHighLevel attaches these to the email. */
+  attachments?: string[];
 }) {
   const config = getGhlConfig();
   if (!config) throw new Error("GHL is not configured");
+  const attachments = input.attachments?.map((url) => url.trim()).filter(Boolean);
   return ghlJson(config, "/conversations/messages", {
     method: "POST",
     body: JSON.stringify({
@@ -227,6 +230,7 @@ export async function sendGhlEmail(input: {
       html: input.html,
       message: input.text,
       emailTo: input.to,
+      ...(attachments?.length ? { attachments } : {}),
     }),
   });
 }
