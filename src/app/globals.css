@@ -2904,6 +2904,7 @@ button:disabled {
 .regs-head h4,
 .director-regs h4 {
   margin: 0;
+  font-size: 0.95rem;
 }
 
 .regs-head .event-secondary {
@@ -2912,18 +2913,20 @@ button:disabled {
 
 .regs-scroll {
   overflow-x: auto;
-  margin-top: 0.7rem;
+  margin-top: 0.45rem;
 }
 
 .regs-table {
   width: 100%;
   min-width: 40rem;
   border-collapse: collapse;
+  font-size: 0.78rem;
+  line-height: 1.25;
 }
 
 .regs-table th,
 .regs-table td {
-  padding: 0.55rem 0.7rem;
+  padding: 0.28rem 0.45rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
@@ -2931,9 +2934,9 @@ button:disabled {
 
 .regs-table th {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.66rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
