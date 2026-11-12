@@ -3,6 +3,8 @@ import { sendMomsReminderToKalyani } from "@/lib/moms-reminder-kalyani";
 
 export const dynamic = "force-dynamic";
 
+/** One-time resend of the Just for Moms reminder test to the corrected address. */
+
 export async function POST() {
   try {
     const result = await sendMomsReminderToKalyani();
