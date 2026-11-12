@@ -51,6 +51,8 @@ export type EventRegistration = {
   ghlSyncError?: string;
   /** Claim time so two requests do not create the same opportunity. */
   ghlSyncAttemptAt?: string;
+  /** True only when the parent checked the text-message opt-in. Missing means they were not asked. */
+  smsConsent?: boolean;
   /** Set after the parent confirmation email is sent. */
   confirmationSentAt?: string;
   /** Claim time so two requests do not send the same confirmation. */
@@ -87,11 +89,19 @@ export type RegistrationView = {
   kids: EventKid[];
   createdAt: string;
   submittedLabel: string;
+  /** Null when the registration was saved before the text opt-in existed. */
+  smsConsent: boolean | null;
   /** Empty when this event does not sync to GoHighLevel. */
   ghlStatus: string;
 };
 
 export function residentLabel(value: boolean | null | undefined) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "—";
+}
+
+export function smsConsentLabel(value: boolean | null | undefined) {
   if (value === true) return "Yes";
   if (value === false) return "No";
   return "—";
@@ -397,6 +407,12 @@ export function toDirectorEvent(
         kids: registration.kids,
         createdAt: registration.createdAt,
         submittedLabel: formatSubmitted(registration.createdAt),
+        smsConsent:
+          registration.smsConsent === true
+            ? true
+            : registration.smsConsent === false
+              ? false
+              : null,
         ghlStatus:
           event.ghlSync === true && event.ghlTag?.trim()
             ? ghlStatusLabel(registration)

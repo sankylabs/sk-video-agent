@@ -47,6 +47,7 @@ export function buildEventRegistrationEmail(input: {
     `Parent: ${parent}`,
     `Email: ${registration.email}`,
     `Phone: ${phone}`,
+    `Text messages: ${registration.smsConsent === true ? "Yes" : "No"}`,
     `Kirkland resident: ${resident}`,
     ...(registration.kirklandResident === false
       ? [`Where they reside: ${residence || "—"}`]
@@ -72,6 +73,7 @@ export function buildEventRegistrationEmail(input: {
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Parent</th><td>${htmlEscape(parent)}</td></tr>
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Email</th><td>${htmlEscape(registration.email)}</td></tr>
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Phone</th><td>${htmlEscape(phone)}</td></tr>
+  <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Text messages</th><td>${registration.smsConsent === true ? "Yes" : "No"}</td></tr>
   <tr><th align="left" style="color:#5c5a70;font-weight:600;padding:4px 12px 4px 0;">Kirkland resident</th><td>${htmlEscape(resident)}</td></tr>
   ${
     registration.kirklandResident === false

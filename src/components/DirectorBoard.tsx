@@ -7,6 +7,7 @@ import { useState } from "react";
 import {
   DIRECTOR_PAGE_SIZE,
   residentLabel,
+  smsConsentLabel,
   type DirectorEventView,
   type RegistrationView,
 } from "@/lib/event-model";
@@ -184,6 +185,7 @@ function registrationsCsv(registrations: RegistrationView[], showGhl: boolean) {
     "Last name",
     "Email",
     "Phone",
+    "Texts",
     "Kirkland resident",
     "Where they reside",
     "Children",
@@ -196,6 +198,7 @@ function registrationsCsv(registrations: RegistrationView[], showGhl: boolean) {
       registration.lastName,
       registration.email,
       registration.phone || "—",
+      smsConsentLabel(registration.smsConsent),
       residentLabel(registration.kirklandResident),
       registration.residence || "—",
       registration.kids.length
@@ -272,6 +275,7 @@ function RegistrationList({
                 <th scope="col">Last name</th>
                 <th scope="col">Email</th>
                 <th scope="col">Phone</th>
+                <th scope="col">Texts</th>
                 <th scope="col">Kirkland resident</th>
                 <th scope="col">Where they reside</th>
                 <th scope="col">Children</th>
@@ -286,6 +290,7 @@ function RegistrationList({
                   <td>{registration.lastName}</td>
                   <td>{registration.email}</td>
                   <td>{registration.phone || "—"}</td>
+                  <td>{smsConsentLabel(registration.smsConsent)}</td>
                   <td>{residentLabel(registration.kirklandResident)}</td>
                   <td>{registration.residence || "—"}</td>
                   <td>

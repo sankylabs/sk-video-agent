@@ -20,6 +20,7 @@ export function eventRegistrationGhlNote(input: {
   const lines = [
     `Event: ${input.eventTitle}`,
     `Lives in Kirkland: ${residentLabel(registration.kirklandResident)}`,
+    `Text messages: ${registration.smsConsent === true ? "Yes" : "No"}`,
   ];
   if (registration.kirklandResident === false) {
     lines.push(`Where they reside: ${registration.residence?.trim() || "—"}`);

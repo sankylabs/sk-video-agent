@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SteamojiVideos } from "@/components/SteamojiVideos";
 import { siteConfig } from "@/lib/config";
@@ -114,6 +115,8 @@ export default function HomePage() {
             <a href={`tel:${siteConfig.phone.replace(/\D/g, "")}`}>{siteConfig.phone}</a>
             <a href={`mailto:${siteConfig.email}`}>{siteConfig.email}</a>
             <a href={siteConfig.websiteUrl}>steamoji.com/wa-kirkland</a>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
           </div>
         </footer>
       </div>

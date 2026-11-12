@@ -555,6 +555,7 @@ export async function registerForEvent(
     kirklandResident: boolean;
     residence?: string;
     kids: { name: string; age: number }[];
+    smsConsent?: boolean;
   },
 ) {
   return withLock(async () => {
@@ -606,6 +607,7 @@ export async function registerForEvent(
       email: input.email,
       phone: input.phone,
       kirklandResident: input.kirklandResident,
+      smsConsent: input.smsConsent === true,
       ...(residence ? { residence } : {}),
       kids,
       createdAt: new Date().toISOString(),

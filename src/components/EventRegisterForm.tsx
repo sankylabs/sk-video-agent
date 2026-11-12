@@ -22,6 +22,7 @@ export function EventRegisterForm({
   const [phone, setPhone] = useState("");
   const [kirklandResident, setKirklandResident] = useState("");
   const [residence, setResidence] = useState("");
+  const [smsConsent, setSmsConsent] = useState(false);
   const [kids, setKids] = useState<KidField[]>([emptyKid()]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -76,6 +77,7 @@ export function EventRegisterForm({
         kirklandResident: kirklandResident === "yes",
         residence: kirklandResident === "no" ? residence.trim() : "",
         kids: payloadKids,
+        smsConsent,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -243,6 +245,20 @@ export function EventRegisterForm({
         ) : null}
       </fieldset>
       ) : null}
+      <label className="sms-opt-in">
+        <input
+          type="checkbox"
+          name="smsConsent"
+          checked={smsConsent}
+          onChange={(event) => setSmsConsent(event.target.checked)}
+        />
+        <span>
+          I agree to receive text messages from Steamoji Kirkland about this event, including a
+          confirmation and reminders. Message frequency varies. Message and data rates may apply.
+          Reply STOP to cancel and HELP for help. Consent is not required to register. See our{" "}
+          <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
+        </span>
+      </label>
       {error ? <p className="maya-error">{error}</p> : null}
       <button className="event-register" type="submit" disabled={pending}>
         {pending ? "Saving…" : "Register"}

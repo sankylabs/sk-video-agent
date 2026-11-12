@@ -39,6 +39,8 @@ export function EventsFrame({
           </div>
           <div className="home-foot-links">
             <Link href="/events">All events</Link>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
             <a href={`tel:${siteConfig.phone.replace(/\D/g, "")}`}>{siteConfig.phone}</a>
             <a href={`mailto:${siteConfig.email}`}>{siteConfig.email}</a>
           </div>

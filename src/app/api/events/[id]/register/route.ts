@@ -34,6 +34,7 @@ const bodySchema = z.object({
     .max(8)
     .optional()
     .default([]),
+  smsConsent: z.boolean().optional().default(false),
 });
 
 export async function POST(
