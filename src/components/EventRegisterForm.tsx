@@ -255,8 +255,7 @@ export function EventRegisterForm({
         <span>
           I agree to receive text messages from Steamoji Kirkland about this event, including a
           confirmation and reminders. Message frequency varies. Message and data rates may apply.
-          Reply STOP to cancel and HELP for help. Consent is not required to register. See our{" "}
-          <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
+          See our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
         </span>
       </label>
       {error ? <p className="maya-error">{error}</p> : null}

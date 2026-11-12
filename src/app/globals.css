@@ -2774,18 +2774,21 @@ button:disabled {
   height: 1.05rem;
 }
 
-.sms-opt-in {
+.event-form label.sms-opt-in {
   display: flex;
+  flex-direction: row;
   align-items: flex-start;
-  gap: 0.7rem;
+  gap: 0.45rem;
+  font-size: 0.8rem;
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.35;
 }
 
-.sms-opt-in input {
-  width: 1.15rem;
-  height: 1.15rem;
-  margin-top: 0.2rem;
+.event-form label.sms-opt-in input {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0.12rem 0 0;
+  padding: 0;
   flex: none;
 }
 
