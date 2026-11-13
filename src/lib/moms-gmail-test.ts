@@ -3,7 +3,7 @@ import path from "path";
 import { buildRegistrationConfirmation } from "./event-confirmation-mail";
 import { sendAcademyGmail } from "./gmail";
 
-const TEST_TO = "sankethka@outlook.com";
+const TEST_TO = "kalyani.ar23@gmail.com";
 const dataDir = path.join(process.cwd(), ".data");
 const markerFile = path.join(dataDir, "moms-gmail-test.json");
 const lockFile = path.join(dataDir, "moms-gmail-test.lock");
@@ -29,7 +29,7 @@ export async function sendMomsGmailTest() {
       endsAt: "2026-11-15T20:00:00.000Z",
       costCents: 0,
     },
-    registration: { firstName: "Sanketh", kids: [] },
+    registration: { firstName: "Kalyani", kids: [] },
   });
   const result = await sendAcademyGmail({
     to: TEST_TO,
