@@ -1,4 +1,5 @@
 import type { AcademyEvent, EventRegistration } from "./event-model";
+import { sendAcademyGmail } from "./gmail";
 import { sendGhlEmail, upsertGhlContact } from "./ghl";
 
 /** Just for Moms workshop. Confirmation mail is limited to this event. */
@@ -83,6 +84,17 @@ export async function deliverRegistrationConfirmation(input: {
   const email = buildRegistrationConfirmation(input);
   const to = input.registration.email.trim();
   const errors: string[] = [];
+  const gmail = await sendAcademyGmail({
+    to,
+    subject: email.subject,
+    text: email.text,
+    html: email.html,
+  });
+  if (gmail.sent) return { sent: true as const };
+  if (gmail.reason !== "not-configured") {
+    console.error("[events] gmail confirmation skipped", gmail.reason);
+    errors.push(gmail.reason);
+  }
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (apiKey) {
     const from =
