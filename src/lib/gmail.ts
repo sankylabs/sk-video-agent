@@ -1,6 +1,7 @@
 import { siteConfig } from "./config";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const USERINFO = "https://www.googleapis.com/oauth2/v2/userinfo";
 const GMAIL_PROFILE = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
 const GMAIL_SEND = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
 
@@ -100,8 +101,24 @@ async function accessToken(token: GoogleTokenFile) {
   return data.access_token;
 }
 
+async function accountEmail(access: string) {
+  const userinfoRes = await fetch(USERINFO, {
+    headers: { Authorization: `Bearer ${access}` },
+  });
+  if (userinfoRes.ok) {
+    const userinfo = (await userinfoRes.json().catch(() => ({}))) as { email?: string };
+    if (userinfo.email?.trim()) return userinfo.email.trim().toLowerCase();
+  }
+  const profileRes = await fetch(GMAIL_PROFILE, {
+    headers: { Authorization: `Bearer ${access}` },
+  });
+  if (!profileRes.ok) return null;
+  const profile = (await profileRes.json().catch(() => ({}))) as { emailAddress?: string };
+  return profile.emailAddress?.trim().toLowerCase() || null;
+}
+
 /**
- * Send as the Google account in GOOGLE_TOKEN_JSON, the same secret the camp roster uses.
+ * Send as the Google account in GOOGLE_TOKEN_JSON.
  * Sends only when that account is the academy mailbox.
  */
 export async function sendAcademyGmail(input: {
@@ -114,18 +131,8 @@ export async function sendAcademyGmail(input: {
   if (!token) return { sent: false, reason: "not-configured" };
   try {
     const access = await accessToken(token);
-    const profileRes = await fetch(GMAIL_PROFILE, {
-      headers: { Authorization: `Bearer ${access}` },
-    });
-    const profile = (await profileRes.json().catch(() => ({}))) as {
-      emailAddress?: string;
-      error?: { message?: string };
-    };
-    if (!profileRes.ok) {
-      return { sent: false, reason: profile.error?.message || `gmail profile ${profileRes.status}` };
-    }
-    const account = profile.emailAddress?.trim().toLowerCase();
-    if (account !== siteConfig.email.toLowerCase()) {
+    const account = await accountEmail(access);
+    if (account && account !== siteConfig.email.toLowerCase()) {
       return { sent: false, reason: "gmail account is not the academy mailbox" };
     }
     const raw = buildGmailRaw({
