@@ -202,12 +202,3 @@ export async function sendMomsSundayTexts() {
   }
 }
 
-/** Read the send record. Does not text anyone. */
-export async function readMomsSundaySmsStatus() {
-  const marker = await readMarker();
-  return {
-    complete: marker.complete,
-    sentCount: marker.sent.size,
-    windowOpen: momsSundaySmsDue(),
-  };
-}
