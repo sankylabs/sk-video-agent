@@ -13,7 +13,6 @@ const dataDir = path.join(process.cwd(), ".data");
 const markerFile = path.join(dataDir, "moms-sunday-sms.json");
 const lockFile = path.join(dataDir, "moms-sunday-sms.lock");
 
-let started = false;
 let running = false;
 
 export function momsSundaySmsDue(now = new Date()) {
@@ -153,7 +152,7 @@ async function sendOne(parent: Parent) {
   }
 }
 
-async function sendMomsSundayTexts() {
+export async function sendMomsSundayTexts() {
   if (running || !momsSundaySmsDue()) return;
   const existing = await readMarker().catch(() => ({ sent: new Set<string>(), complete: false }));
   if (existing.complete) return;
@@ -203,25 +202,12 @@ async function sendMomsSundayTexts() {
   }
 }
 
-/** Arm the Sunday 7:30 AM Pacific send. Safe to call once when the server starts. */
-export function startMomsSundaySms() {
-  if (started) return;
-  started = true;
-  const delay = MOMS_SUNDAY_SMS_AT.getTime() - Date.now();
-  if (delay > 0) {
-    const timeout = setTimeout(() => {
-      void sendMomsSundayTexts();
-    }, delay);
-    timeout.unref?.();
-    console.log("[moms-sunday-sms] scheduled for 7:30 AM Pacific on November 15, 2026");
-  }
-  const timer = setInterval(() => {
-    if (Date.now() >= MOMS_SUNDAY_SMS_UNTIL.getTime()) {
-      clearInterval(timer);
-      return;
-    }
-    void sendMomsSundayTexts();
-  }, 60_000);
-  timer.unref?.();
-  if (momsSundaySmsDue()) void sendMomsSundayTexts();
+/** Read the send record. Does not text anyone. */
+export async function readMomsSundaySmsStatus() {
+  const marker = await readMarker();
+  return {
+    complete: marker.complete,
+    sentCount: marker.sent.size,
+    windowOpen: momsSundaySmsDue(),
+  };
 }
