@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { notifyEventRegistration } from "@/lib/event-registration-mail";
-import { REGISTRATION_CONFIRMATION_EVENT_ID } from "@/lib/event-confirmation-mail";
+import { CONFIRMATION_EVENT_IDS, LASER_WORKSHOP_EVENT_ID } from "@/lib/event-confirmation-mail";
 import {
   EventInputError,
   registerForEvent,
   sendPendingEventConfirmations,
+  sendPendingLaserConfirmationTexts,
   syncPendingEventRegistrations,
 } from "@/lib/events";
 
@@ -62,10 +63,22 @@ export async function POST(
       registration: result.registration,
     });
     await syncPendingEventRegistrations();
-    if (result.event.id === REGISTRATION_CONFIRMATION_EVENT_ID) {
+    if (
+      CONFIRMATION_EVENT_IDS.includes(
+        result.event.id as (typeof CONFIRMATION_EVENT_IDS)[number],
+      )
+    ) {
       await sendPendingEventConfirmations().catch((err: unknown) => {
         console.error(
           "[events] confirmation email failed",
+          err instanceof Error ? err.message : err,
+        );
+      });
+    }
+    if (result.event.id === LASER_WORKSHOP_EVENT_ID) {
+      await sendPendingLaserConfirmationTexts().catch((err: unknown) => {
+        console.error(
+          "[events] confirmation text failed",
           err instanceof Error ? err.message : err,
         );
       });

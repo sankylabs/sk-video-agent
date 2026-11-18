@@ -1,3 +1,7 @@
 export async function register() {
-  // The Sunday morning reminder is paused. Do not send it on server start.
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.NODE_ENV !== "production") return;
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
+  const { startLaserFridaySms } = await import("./lib/laser-friday-sms");
+  startLaserFridaySms();
 }

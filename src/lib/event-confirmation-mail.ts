@@ -2,8 +2,15 @@ import type { AcademyEvent, EventRegistration } from "./event-model";
 import { sendAcademyGmail } from "./gmail";
 import { sendGhlEmail, upsertGhlContact } from "./ghl";
 
-/** Just for Moms workshop. Confirmation mail is limited to this event. */
+/** Just for Moms workshop. */
 export const REGISTRATION_CONFIRMATION_EVENT_ID = "w-cj4EJWk7";
+/** Laser cutting workshop on Saturday, November 21, 2026. */
+export const LASER_WORKSHOP_EVENT_ID = "xvqRdjZtLC";
+
+export const CONFIRMATION_EVENT_IDS = [
+  REGISTRATION_CONFIRMATION_EVENT_ID,
+  LASER_WORKSHOP_EVENT_ID,
+] as const;
 
 const SUBJECT =
   "You're confirmed! Free 3D Design Workshop for Moms — Sunday, Nov 15 at 10:30 AM";
@@ -77,11 +84,63 @@ ${p("Warm regards,<br><strong>Team Steamoji Kirkland</strong><br>355 Kirkland Av
   return { subject: SUBJECT, text, html };
 }
 
+const LASER_SUBJECT =
+  "You're confirmed! Laser Cutting & Design Workshop — Saturday, Nov 21 at 1:30 PM";
+
+export function buildLaserWorkshopConfirmation(input: {
+  registration: Pick<EventRegistration, "firstName">;
+}) {
+  const name = input.registration.firstName.trim() || "there";
+  const text = [
+    `Hi ${name},`,
+    "",
+    "You're registered for our free Laser Cutting & Design Workshop at Steamoji Kirkland!",
+    "",
+    "Date: Saturday, November 21, 2026",
+    "Time: 1:30 PM – 3:00 PM",
+    "Location: Steamoji Kirkland",
+    "355 Kirkland Avenue, Kirkland, WA 98033",
+    "",
+    "Your child will design a Thanksgiving wooden candle holder, watch it get laser-cut, and assemble it to take home.",
+    "",
+    "No design or laser-cutting experience is needed. We'll provide everything.",
+    "",
+    "This workshop is free and spots are limited. If your plans change, please email kirkland@steamoji.com so we can offer the spot to another family.",
+    "",
+    "We can't wait to build with you!",
+    "",
+    "Team Steamoji Kirkland",
+    "355 Kirkland Avenue, Kirkland, WA 98033",
+    "425-305-5642",
+    "kirkland@steamoji.com",
+  ].join("\n");
+
+  const p = (body: string) =>
+    `<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#1e2060;">${body}</p>`;
+  const html = `<div style="font-family:Georgia,serif;max-width:560px;">
+${p(`Hi ${escapeHtml(name)},`)}
+${p("You're registered for our free <strong>Laser Cutting &amp; Design Workshop</strong> at Steamoji Kirkland!")}
+${p("<strong>📅 Date:</strong> Saturday, November 21, 2026<br><strong>⏰ Time:</strong> 1:30 PM – 3:00 PM<br><strong>📍 Location:</strong> Steamoji Kirkland<br>355 Kirkland Avenue, Kirkland, WA 98033")}
+${p("Your child will design a Thanksgiving wooden candle holder, watch it get laser-cut, and assemble it to take home.")}
+${p("<strong>No design or laser-cutting experience is needed.</strong> We'll provide everything.")}
+${p("This workshop is free and spots are limited. If your plans change, please email <a href=\"mailto:kirkland@steamoji.com\">kirkland@steamoji.com</a> so we can offer the spot to another family.")}
+${p("We can't wait to build with you!")}
+${p("<strong>Team Steamoji Kirkland</strong><br>355 Kirkland Avenue, Kirkland, WA 98033<br>📞 425-305-5642<br>📧 kirkland@steamoji.com")}
+</div>`;
+  return { subject: LASER_SUBJECT, text, html };
+}
+
 export async function deliverRegistrationConfirmation(input: {
-  event: Pick<AcademyEvent, "title" | "startsAt" | "endsAt" | "costCents">;
+  event: Pick<AcademyEvent, "id" | "title" | "startsAt" | "endsAt" | "costCents">;
   registration: Pick<EventRegistration, "firstName" | "lastName" | "email" | "phone" | "kids">;
 }) {
-  const email = buildRegistrationConfirmation(input);
+  const email =
+    input.event.id === LASER_WORKSHOP_EVENT_ID
+      ? buildLaserWorkshopConfirmation(input)
+      : input.event.id === REGISTRATION_CONFIRMATION_EVENT_ID
+        ? buildRegistrationConfirmation(input)
+        : null;
+  if (!email) return { sent: false as const, error: "no confirmation for this event" };
   const to = input.registration.email.trim();
   const errors: string[] = [];
   const gmail = await sendAcademyGmail({

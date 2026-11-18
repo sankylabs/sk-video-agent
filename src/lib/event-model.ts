@@ -57,6 +57,10 @@ export type EventRegistration = {
   confirmationSentAt?: string;
   /** Claim time so two requests do not send the same confirmation. */
   confirmationAttemptAt?: string;
+  /** Set after the registration text is sent. */
+  confirmationSmsSentAt?: string;
+  /** Claim time so two requests do not send the same registration text. */
+  confirmationSmsAttemptAt?: string;
 };
 
 export type PublicEvent = {
