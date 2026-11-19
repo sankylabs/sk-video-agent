@@ -558,11 +558,48 @@ export async function cancelRegistration(eventId: string, registrationId: string
       (item) => item.id === registrationId && item.eventId === eventId,
     );
     if (!registration) return { error: "Registration not found", status: 404 as const };
+    if (registration.cancelledAt) {
+      return { error: "That registration is already cancelled.", status: 409 as const };
+    }
     const spots = spotsHeldBy(registration, event.allowChildren !== false);
-    await atomicWrite(
-      registrationsFile,
-      registrations.filter((item) => item.id !== registrationId),
+    registration.cancelledAt = new Date().toISOString();
+    await atomicWrite(registrationsFile, registrations);
+    return { ok: true as const, spots };
+  });
+}
+
+export async function restoreRegistration(eventId: string, registrationId: string) {
+  return withLock(async () => {
+    const events = await readEventsUnlocked();
+    const event = events.find((item) => item.id === eventId);
+    if (!event) return { error: "Event not found", status: 404 as const };
+    const registrations = await readRegistrationsUnlocked();
+    const registration = registrations.find(
+      (item) => item.id === registrationId && item.eventId === eventId,
     );
+    if (!registration) return { error: "Registration not found", status: 404 as const };
+    if (!registration.cancelledAt) {
+      return { error: "That registration is already active.", status: 409 as const };
+    }
+    const allowChildren = event.allowChildren !== false;
+    const spots = spotsHeldBy(registration, allowChildren);
+    if (event.capacity != null) {
+      const taken = spotsTakenFor(registrations, event.id, allowChildren);
+      if (taken + spots > event.capacity) {
+        const left = Math.max(0, event.capacity - taken);
+        return {
+          error:
+            left === 0
+              ? "This event is sold out."
+              : left === 1
+                ? "Only 1 spot is left."
+                : `Only ${left} spots are left.`,
+          status: 409 as const,
+        };
+      }
+    }
+    delete registration.cancelledAt;
+    await atomicWrite(registrationsFile, registrations);
     return { ok: true as const, spots };
   });
 }
@@ -653,7 +690,7 @@ export async function syncPendingEventRegistrations() {
     const pending: { event: AcademyEvent; registration: EventRegistration }[] = [];
     let changed = false;
     for (const registration of registrations) {
-      if (registration.ghlSyncedAt) continue;
+      if (registration.ghlSyncedAt || registration.cancelledAt) continue;
       const event = events.find((item) => item.id === registration.eventId);
       if (!event?.ghlSync || !event.ghlTag?.trim()) continue;
       const attempt = Date.parse(registration.ghlSyncAttemptAt || "");
@@ -710,7 +747,8 @@ export async function sendPendingEventConfirmations() {
         !CONFIRMATION_EVENT_IDS.includes(
           registration.eventId as (typeof CONFIRMATION_EVENT_IDS)[number],
         ) ||
-        registration.confirmationSentAt
+        registration.confirmationSentAt ||
+        registration.cancelledAt
       ) {
         continue;
       }
@@ -766,7 +804,7 @@ export async function sendPendingLaserConfirmationTexts() {
     let changed = false;
     for (const registration of registrations) {
       if (registration.eventId !== event.id || registration.smsConsent !== true) continue;
-      if (registration.confirmationSmsSentAt) continue;
+      if (registration.confirmationSmsSentAt || registration.cancelledAt) continue;
       const attempt = Date.parse(registration.confirmationSmsAttemptAt || "");
       if (Number.isFinite(attempt) && now - attempt < GHL_RETRY_MS) continue;
       registration.confirmationSmsAttemptAt = new Date().toISOString();

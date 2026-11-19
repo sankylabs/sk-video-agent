@@ -61,6 +61,8 @@ export type EventRegistration = {
   confirmationSmsSentAt?: string;
   /** Claim time so two requests do not send the same registration text. */
   confirmationSmsAttemptAt?: string;
+  /** Set when a director cancels the registration. Cleared if it is restored. */
+  cancelledAt?: string;
 };
 
 export type PublicEvent = {
@@ -97,6 +99,8 @@ export type RegistrationView = {
   smsConsent: boolean | null;
   /** Empty when this event does not sync to GoHighLevel. */
   ghlStatus: string;
+  /** Empty while the registration is active. */
+  cancelledLabel: string;
 };
 
 export function residentLabel(value: boolean | null | undefined) {
@@ -140,6 +144,7 @@ export type DirectorEventView = PublicEvent & {
   endTime: string;
   endsNextDay: boolean;
   registrations: RegistrationView[];
+  cancelledRegistrations: RegistrationView[];
 };
 
 export const DIRECTOR_PAGE_SIZE = 15;
@@ -313,12 +318,12 @@ export function spotsHeldBy(
 }
 
 export function spotsTakenFor(
-  registrations: Pick<EventRegistration, "eventId" | "kids">[],
+  registrations: Pick<EventRegistration, "eventId" | "kids" | "cancelledAt">[],
   eventId: string,
   allowChildren = true,
 ) {
   return registrations.reduce((sum, registration) => {
-    if (registration.eventId !== eventId) return sum;
+    if (registration.eventId !== eventId || registration.cancelledAt) return sum;
     return sum + spotsHeldBy(registration, allowChildren);
   }, 0);
 }
@@ -399,37 +404,52 @@ export function toDirectorEvent(
     startTime: start.time,
     endTime: end.time,
     endsNextDay: end.date === addUtcDays(start.date, 1),
-    registrations: registrations
-      .filter((registration) => registration.eventId === event.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map((registration) => ({
-        id: registration.id,
-        firstName: registration.firstName,
-        lastName: registration.lastName,
-        email: registration.email,
-        phone: registration.phone?.trim() ?? "",
-        kirklandResident:
-          registration.kirklandResident === true
-            ? true
-            : registration.kirklandResident === false
-              ? false
-              : null,
-        residence: registration.residence?.trim() ?? "",
-        kids: registration.kids,
-        createdAt: registration.createdAt,
-        submittedLabel: formatSubmitted(registration.createdAt),
-        smsConsent:
-          registration.smsConsent === true
-            ? true
-            : registration.smsConsent === false
-              ? false
-              : null,
-        ghlStatus:
-          event.ghlSync === true && event.ghlTag?.trim()
-            ? ghlStatusLabel(registration)
-            : "",
-      })),
+    registrations: registrationViews(event, registrations, false),
+    cancelledRegistrations: registrationViews(event, registrations, true),
   };
+}
+
+function registrationViews(
+  event: AcademyEvent,
+  registrations: EventRegistration[],
+  cancelled: boolean,
+): RegistrationView[] {
+  return registrations
+    .filter(
+      (registration) =>
+        registration.eventId === event.id && Boolean(registration.cancelledAt) === cancelled,
+    )
+    .sort((a, b) =>
+      (cancelled ? b.cancelledAt || "" : b.createdAt).localeCompare(
+        cancelled ? a.cancelledAt || "" : a.createdAt,
+      ),
+    )
+    .map((registration) => ({
+      id: registration.id,
+      firstName: registration.firstName,
+      lastName: registration.lastName,
+      email: registration.email,
+      phone: registration.phone?.trim() ?? "",
+      kirklandResident:
+        registration.kirklandResident === true
+          ? true
+          : registration.kirklandResident === false
+            ? false
+            : null,
+      residence: registration.residence?.trim() ?? "",
+      kids: registration.kids,
+      createdAt: registration.createdAt,
+      submittedLabel: formatSubmitted(registration.createdAt),
+      smsConsent:
+        registration.smsConsent === true
+          ? true
+          : registration.smsConsent === false
+            ? false
+            : null,
+      ghlStatus:
+        event.ghlSync === true && event.ghlTag?.trim() ? ghlStatusLabel(registration) : "",
+      cancelledLabel: registration.cancelledAt ? formatSubmitted(registration.cancelledAt) : "",
+    }));
 }
 
 export function splitEvents<T extends { startsAt: string; endsAt: string; past: boolean }>(

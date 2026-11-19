@@ -41,6 +41,7 @@ function parentsFor(registrations: EventRegistration[]) {
   const groups = new Map<string, EventRegistration[]>();
   for (const registration of registrations) {
     if (registration.eventId !== LASER_WORKSHOP_EVENT_ID) continue;
+    if (registration.cancelledAt) continue;
     if (registration.smsConsent !== true) continue;
     const phone = usableEventPhone(registration.phone);
     if (!phone) continue;

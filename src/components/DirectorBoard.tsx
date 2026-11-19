@@ -171,6 +171,7 @@ function DirectorEventCard({ event }: { event: DirectorEventView }) {
         allowChildren={event.allowChildren}
         title={event.title}
         registrations={event.registrations}
+        cancelledRegistrations={event.cancelledRegistrations}
         showGhl={event.ghlSync}
       />
     </article>
@@ -229,12 +230,14 @@ function RegistrationList({
   allowChildren,
   title,
   registrations,
+  cancelledRegistrations,
   showGhl,
 }: {
   eventId: string;
   allowChildren: boolean;
   title: string;
   registrations: RegistrationView[];
+  cancelledRegistrations: RegistrationView[];
   showGhl: boolean;
 }) {
   const [page, setPage] = useState(1);
@@ -272,7 +275,7 @@ function RegistrationList({
         ) : null}
       </div>
       {registrations.length === 0 ? (
-        <p>No registrations yet.</p>
+        <p>{cancelledRegistrations.length ? "No current registrations." : "No registrations yet."}</p>
       ) : (
         <div className="regs-scroll">
           <table className="regs-table">
@@ -346,7 +349,140 @@ function RegistrationList({
           </button>
         </div>
       ) : null}
+      <CancelledRegistrations
+        eventId={eventId}
+        allowChildren={allowChildren}
+        registrations={cancelledRegistrations}
+      />
     </div>
+  );
+}
+
+function CancelledRegistrations({
+  eventId,
+  allowChildren,
+  registrations,
+}: {
+  eventId: string;
+  allowChildren: boolean;
+  registrations: RegistrationView[];
+}) {
+  const [page, setPage] = useState(1);
+  if (registrations.length === 0) return null;
+  const pages = Math.max(1, Math.ceil(registrations.length / DIRECTOR_PAGE_SIZE));
+  const safePage = Math.min(page, pages);
+  const visible = registrations.slice(
+    (safePage - 1) * DIRECTOR_PAGE_SIZE,
+    safePage * DIRECTOR_PAGE_SIZE,
+  );
+
+  return (
+    <div className="cancelled-regs">
+      <h4>
+        {registrations.length === 1
+          ? "1 cancelled registration"
+          : `${registrations.length} cancelled registrations`}
+      </h4>
+      <div className="regs-scroll">
+        <table className="regs-table">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Email</th>
+              <th scope="col">Children</th>
+              <th scope="col">Cancelled</th>
+              <th scope="col">
+                <span className="sr-only">Restore</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((registration) => (
+              <tr key={registration.id}>
+                <td>
+                  {registration.firstName} {registration.lastName}
+                </td>
+                <td>{registration.email}</td>
+                <td>
+                  {registration.kids.length
+                    ? registration.kids.map((kid) => `${kid.name}, age ${kid.age}`).join(" · ")
+                    : "—"}
+                </td>
+                <td>{registration.cancelledLabel}</td>
+                <td>
+                  <RestoreRegistrationButton
+                    eventId={eventId}
+                    registration={registration}
+                    spots={spotsHeldBy(registration, allowChildren)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {pages > 1 ? (
+        <div className="pager">
+          <button
+            type="button"
+            className="event-secondary"
+            disabled={safePage <= 1}
+            onClick={() => setPage(safePage - 1)}
+          >
+            Previous
+          </button>
+          <span>
+            Page {safePage} of {pages}
+          </span>
+          <button
+            type="button"
+            className="event-secondary"
+            disabled={safePage >= pages}
+            onClick={() => setPage(safePage + 1)}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RestoreRegistrationButton({
+  eventId,
+  registration,
+  spots,
+}: {
+  eventId: string;
+  registration: RegistrationView;
+  spots: number;
+}) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const name = `${registration.firstName} ${registration.lastName}`.trim();
+
+  async function onRestore() {
+    const using =
+      spots === 1 ? "This uses 1 spot." : spots > 1 ? `This uses ${spots} spots.` : "";
+    if (!window.confirm(`Restore ${name}'s registration? ${using}`.trim())) return;
+    setPending(true);
+    const res = await fetch(
+      `/api/events/manage/${eventId}/registrations/${registration.id}`,
+      { method: "POST" },
+    );
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    setPending(false);
+    if (!res.ok) {
+      window.alert(data.error || "Could not restore that registration.");
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <button className="regs-restore" type="button" onClick={onRestore} disabled={pending}>
+      {pending ? "Restoring…" : "Restore"}
+    </button>
   );
 }
 
@@ -370,7 +506,7 @@ function CancelRegistrationButton({
         : spots > 1
           ? `This frees ${spots} spots.`
           : "It is not holding a spot.";
-    if (!window.confirm(`Cancel ${name}'s registration? ${freeing}`)) return;
+    if (!window.confirm(`Cancel ${name}'s registration? ${freeing} You can restore it later.`)) return;
     setPending(true);
     const res = await fetch(
       `/api/events/manage/${eventId}/registrations/${registration.id}`,
