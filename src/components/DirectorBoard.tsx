@@ -8,6 +8,7 @@ import {
   DIRECTOR_PAGE_SIZE,
   residentLabel,
   smsConsentLabel,
+  spotsHeldBy,
   type DirectorEventView,
   type RegistrationView,
 } from "@/lib/event-model";
@@ -166,6 +167,8 @@ function DirectorEventCard({ event }: { event: DirectorEventView }) {
         </div>
       </div>
       <RegistrationList
+        eventId={event.id}
+        allowChildren={event.allowChildren}
         title={event.title}
         registrations={event.registrations}
         showGhl={event.ghlSync}
@@ -222,10 +225,14 @@ function csvFilename(title: string) {
 }
 
 function RegistrationList({
+  eventId,
+  allowChildren,
   title,
   registrations,
   showGhl,
 }: {
+  eventId: string;
+  allowChildren: boolean;
   title: string;
   registrations: RegistrationView[];
   showGhl: boolean;
@@ -281,6 +288,9 @@ function RegistrationList({
                 <th scope="col">Children</th>
                 <th scope="col">Submitted</th>
                 {showGhl ? <th scope="col">GHL</th> : null}
+                <th scope="col">
+                  <span className="sr-only">Cancel</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -300,6 +310,13 @@ function RegistrationList({
                   </td>
                   <td>{registration.submittedLabel}</td>
                   {showGhl ? <td>{registration.ghlStatus || "Pending"}</td> : null}
+                  <td>
+                    <CancelRegistrationButton
+                      eventId={eventId}
+                      registration={registration}
+                      spots={spotsHeldBy(registration, allowChildren)}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -330,6 +347,47 @@ function RegistrationList({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function CancelRegistrationButton({
+  eventId,
+  registration,
+  spots,
+}: {
+  eventId: string;
+  registration: RegistrationView;
+  spots: number;
+}) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const name = `${registration.firstName} ${registration.lastName}`.trim();
+
+  async function onCancel() {
+    const freeing =
+      spots === 1
+        ? "This frees 1 spot."
+        : spots > 1
+          ? `This frees ${spots} spots.`
+          : "It is not holding a spot.";
+    if (!window.confirm(`Cancel ${name}'s registration? ${freeing}`)) return;
+    setPending(true);
+    const res = await fetch(
+      `/api/events/manage/${eventId}/registrations/${registration.id}`,
+      { method: "DELETE" },
+    );
+    setPending(false);
+    if (!res.ok) {
+      window.alert("Could not cancel that registration.");
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <button className="event-text-btn" type="button" onClick={onCancel} disabled={pending}>
+      {pending ? "Cancelling…" : "Cancel"}
+    </button>
   );
 }
 

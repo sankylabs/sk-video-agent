@@ -15,6 +15,7 @@ import {
   pacificRangeToIso,
   parseCapacity,
   parseGhlTag,
+  spotsHeldBy,
   spotsTakenFor,
   toDirectorEvent,
   toPublicEvent,
@@ -544,6 +545,25 @@ export async function deleteEvent(id: string) {
     );
     await removePoster(event.posterFile);
     return true;
+  });
+}
+
+export async function cancelRegistration(eventId: string, registrationId: string) {
+  return withLock(async () => {
+    const events = await readEventsUnlocked();
+    const event = events.find((item) => item.id === eventId);
+    if (!event) return { error: "Event not found", status: 404 as const };
+    const registrations = await readRegistrationsUnlocked();
+    const registration = registrations.find(
+      (item) => item.id === registrationId && item.eventId === eventId,
+    );
+    if (!registration) return { error: "Registration not found", status: 404 as const };
+    const spots = spotsHeldBy(registration, event.allowChildren !== false);
+    await atomicWrite(
+      registrationsFile,
+      registrations.filter((item) => item.id !== registrationId),
+    );
+    return { ok: true as const, spots };
   });
 }
 

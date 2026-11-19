@@ -305,6 +305,13 @@ export function isPastEvent(event: Pick<AcademyEvent, "endsAt">, now = new Date(
   return new Date(event.endsAt).getTime() <= now.getTime();
 }
 
+export function spotsHeldBy(
+  registration: Pick<EventRegistration, "kids">,
+  allowChildren: boolean,
+) {
+  return allowChildren ? registration.kids.length : 1;
+}
+
 export function spotsTakenFor(
   registrations: Pick<EventRegistration, "eventId" | "kids">[],
   eventId: string,
@@ -312,7 +319,7 @@ export function spotsTakenFor(
 ) {
   return registrations.reduce((sum, registration) => {
     if (registration.eventId !== eventId) return sum;
-    return sum + (allowChildren ? registration.kids.length : 1);
+    return sum + spotsHeldBy(registration, allowChildren);
   }, 0);
 }
 

@@ -2999,6 +2999,25 @@ button:disabled {
   border-bottom: 0;
 }
 
+.regs-table .event-text-btn {
+  margin-top: 0;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .events-empty {
   margin: 0;
   padding: 1.2rem 0 0.4rem;
