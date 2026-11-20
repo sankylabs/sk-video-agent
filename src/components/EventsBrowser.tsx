@@ -65,11 +65,6 @@ export function EventsBrowser({
                   <span>{event.dateLabel}</span>
                   <span>{event.timeLabel}</span>
                 </p>
-                {event.capacity != null ? (
-                  <p className="event-spots">
-                    {event.spotsTaken} of {event.capacity} spots filled
-                  </p>
-                ) : null}
                 <p className="event-desc">{event.description}</p>
                 {event.past || event.soldOut ? (
                   <Link className="event-secondary" href={`/events/${event.id}`}>
