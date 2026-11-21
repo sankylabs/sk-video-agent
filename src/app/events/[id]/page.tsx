@@ -49,8 +49,13 @@ export default async function EventDetailPage({
         <div className="event-detail-copy">
           <div className="event-card-top">
             <p className="event-cost">{event.costLabel}</p>
-            {event.past ? <p className="event-closed">Registration closed</p> : null}
-            {event.soldOut && !event.past ? <p className="event-soldout">Sold out</p> : null}
+            {event.cancelled ? <p className="event-cancelled">Cancelled</p> : null}
+            {!event.cancelled && event.past ? (
+              <p className="event-closed">Registration closed</p>
+            ) : null}
+            {!event.cancelled && event.soldOut && !event.past ? (
+              <p className="event-soldout">Sold out</p>
+            ) : null}
           </div>
           <p className="event-when">
             <span>{event.dateLabel}</span>
@@ -58,7 +63,12 @@ export default async function EventDetailPage({
           </p>
           <p className="event-location">{siteConfig.address}</p>
           <p className="event-full">{event.description}</p>
-          {event.past ? (
+          {event.cancelled ? (
+            <p className="event-closed-note">
+              This workshop has been cancelled because our instructor had a family emergency.
+              We are sorry for the short notice.
+            </p>
+          ) : event.past ? (
             <p className="event-closed-note">
               This event has passed, so registration is closed.
             </p>

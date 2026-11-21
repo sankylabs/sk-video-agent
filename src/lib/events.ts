@@ -15,6 +15,7 @@ import {
   pacificRangeToIso,
   parseCapacity,
   parseGhlTag,
+  isCancelledEvent,
   spotsHeldBy,
   spotsTakenFor,
   toDirectorEvent,
@@ -623,6 +624,9 @@ export async function registerForEvent(
     if (!event || event.status !== "published") {
       return { error: "That event is no longer listed.", status: 404 as const };
     }
+    if (isCancelledEvent(event.id)) {
+      return { error: "This event has been cancelled.", status: 409 as const };
+    }
     if (isPastEvent(event)) {
       return { error: "Registration is closed for this event.", status: 409 as const };
     }
@@ -790,8 +794,9 @@ export async function sendPendingEventConfirmations() {
   return { sent, failed: errors.length, errors };
 }
 
-/** Registration texts for the laser workshop. Only parents who opted in. */
+/** Registration texts for the laser workshop. Off while the workshop is cancelled. */
 export async function sendPendingLaserConfirmationTexts() {
+  if (isCancelledEvent(LASER_WORKSHOP_EVENT_ID)) return { sent: 0, failed: 0 };
   const claimed = await withLock(async () => {
     const [events, registrations] = await Promise.all([
       readEventsUnlocked(),

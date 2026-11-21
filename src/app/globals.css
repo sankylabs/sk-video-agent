@@ -2438,6 +2438,7 @@ button:disabled {
 
 .event-cost,
 .event-closed,
+.event-cancelled,
 .event-open {
   display: inline-flex;
   margin: 0;
@@ -2467,7 +2468,8 @@ button:disabled {
   color: var(--brand-ink);
 }
 
-.event-soldout {
+.event-soldout,
+.event-cancelled {
   background: var(--brand-red);
   color: var(--brand-white);
 }

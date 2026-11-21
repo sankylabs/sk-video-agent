@@ -55,8 +55,13 @@ export function EventsBrowser({
               <div className="event-card-body">
                 <div className="event-card-top">
                   <p className="event-cost">{event.costLabel}</p>
-                  {event.past ? <p className="event-closed">Registration closed</p> : null}
-                  {event.soldOut && !event.past ? <p className="event-soldout">Sold out</p> : null}
+                  {event.cancelled ? <p className="event-cancelled">Cancelled</p> : null}
+                  {!event.cancelled && event.past ? (
+                    <p className="event-closed">Registration closed</p>
+                  ) : null}
+                  {!event.cancelled && event.soldOut && !event.past ? (
+                    <p className="event-soldout">Sold out</p>
+                  ) : null}
                 </div>
                 <h2>
                   <Link href={`/events/${event.id}`}>{event.title}</Link>
@@ -66,7 +71,7 @@ export function EventsBrowser({
                   <span>{event.timeLabel}</span>
                 </p>
                 <p className="event-desc">{event.description}</p>
-                {event.past || event.soldOut ? (
+                {event.cancelled || event.past || event.soldOut ? (
                   <Link className="event-secondary" href={`/events/${event.id}`}>
                     View event
                   </Link>

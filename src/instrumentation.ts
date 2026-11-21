@@ -1,7 +1,3 @@
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  if (process.env.NODE_ENV !== "production") return;
-  if (process.env.NEXT_PHASE === "phase-production-build") return;
-  const { startLaserFridaySms } = await import("./lib/laser-friday-sms");
-  startLaserFridaySms();
+  // Laser workshop reminders are off. The Saturday, November 21 workshop was cancelled.
 }

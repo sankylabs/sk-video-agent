@@ -145,8 +145,11 @@ function DirectorEventCard({ event }: { event: DirectorEventView }) {
             <p className={event.status === "published" ? "event-open" : "event-draft"}>
               {event.status === "published" ? "Published" : "Draft"}
             </p>
-            {event.past ? <p className="event-closed">Ended</p> : null}
-            {event.soldOut && !event.past ? <p className="event-soldout">Sold out</p> : null}
+            {event.cancelled ? <p className="event-cancelled">Cancelled</p> : null}
+            {!event.cancelled && event.past ? <p className="event-closed">Ended</p> : null}
+            {!event.cancelled && event.soldOut && !event.past ? (
+              <p className="event-soldout">Sold out</p>
+            ) : null}
           </div>
           <h3>{event.title}</h3>
           <p className="event-when">

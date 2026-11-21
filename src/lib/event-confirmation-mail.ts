@@ -7,10 +7,7 @@ export const REGISTRATION_CONFIRMATION_EVENT_ID = "w-cj4EJWk7";
 /** Laser cutting workshop on Saturday, November 21, 2026. */
 export const LASER_WORKSHOP_EVENT_ID = "xvqRdjZtLC";
 
-export const CONFIRMATION_EVENT_IDS = [
-  REGISTRATION_CONFIRMATION_EVENT_ID,
-  LASER_WORKSHOP_EVENT_ID,
-] as const;
+export const CONFIRMATION_EVENT_IDS = [REGISTRATION_CONFIRMATION_EVENT_ID] as const;
 
 const SUBJECT =
   "You're confirmed! Free 3D Design Workshop for Moms — Sunday, Nov 15 at 10:30 AM";

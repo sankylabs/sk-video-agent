@@ -76,12 +76,21 @@ export type PublicEvent = {
   dateLabel: string;
   timeLabel: string;
   past: boolean;
+  /** True when the academy cancelled this event. */
+  cancelled: boolean;
   capacity: number | null;
   spotsTaken: number;
   soldOut: boolean;
   posterUrl: string;
   allowChildren: boolean;
 };
+
+/** Events the academy has cancelled. Registration and reminders stay off. */
+export const CANCELLED_EVENT_IDS = new Set(["xvqRdjZtLC"]);
+
+export function isCancelledEvent(eventId: string) {
+  return CANCELLED_EVENT_IDS.has(eventId);
+}
 
 export type RegistrationView = {
   id: string;
@@ -377,6 +386,7 @@ export function toPublicEvent(
     dateLabel: schedule.dateLabel,
     timeLabel: schedule.timeLabel,
     past: isPastEvent(event, now),
+    cancelled: isCancelledEvent(event.id),
     capacity,
     spotsTaken,
     soldOut: isSoldOut(capacity, spotsTaken),
